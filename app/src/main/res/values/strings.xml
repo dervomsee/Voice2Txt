@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Voice2Txt2</string>
+    <string name="select_engine">Select Engine</string>
+    <string name="transcription_hint">Transcription will appear here…</string>
+    <string name="processing">Processing audio…</string>
+    <string name="error_title">Error</string>
+    <string name="share_text">Share Text</string>
+    <string name="info">Info</string>
+    <string name="app_info_title">App Information</string>
+    <string name="version">Version</string>
+    <string name="android_version">Android Version</string>
+    <string name="api_level">API Level</string>
+    <string name="device">Device</string>
+    <string name="ai_status">AI Status</string>
+    <string name="about_text">Voice2Txt2 is a privacy-focused speech recognition app using on-device AI models.</string>
+    <string name="close">Close</string>
+    <string name="permission_required">Record Audio permission is required for speech recognition.</string>
+    <string name="grant_permission">Grant Permission</string>
+</resources>

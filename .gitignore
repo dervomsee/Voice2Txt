@@ -1,0 +1,21 @@
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+.DS_Store
+
+# Android Application
+app/build/
+*.apk
+*.aar
+*.jks
+
+# AI Agent Specific
+.artifacts/
+AGENTS.md
+GEMINI.md
