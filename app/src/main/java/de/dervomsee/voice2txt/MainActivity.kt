@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import de.dervomsee.voice2txt.ui.AiModel
 import de.dervomsee.voice2txt.ui.AppInfo
 import de.dervomsee.voice2txt.ui.MainViewModel
 import de.dervomsee.voice2txt.ui.theme.Voice2TxtTheme
@@ -99,6 +101,7 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        Text(stringResource(R.string.speech_engine), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelSmall)
                         viewModel.engines.forEach { engine ->
                             DropdownMenuItem(
                                 text = { Text(engine.name) },
@@ -122,6 +125,19 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                                 showMenu = false 
                             }
                         )
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Settings, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.manage_models))
+                                }
+                            },
+                            onClick = { 
+                                viewModel.openModelManagement()
+                                showMenu = false 
+                            }
+                        )
                     }
                 }
             )
@@ -132,7 +148,12 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                 FloatingActionButton(onClick = {
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, viewModel.transcriptionText)
+                        val textToShare = if (viewModel.summaryText.isNotEmpty()) {
+                            "Summary:\n${viewModel.summaryText}\n\nTranscription:\n${viewModel.transcriptionText}"
+                        } else {
+                            viewModel.transcriptionText
+                        }
+                        putExtra(Intent.EXTRA_TEXT, textToShare)
                     }
                     context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_text)))
                 }) {
@@ -150,10 +171,17 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = viewModel.currentEngine.name,
+                text = stringResource(R.string.label_engine, viewModel.currentEngine.name),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.secondary
             )
+            if (viewModel.currentEngine.name.contains("Whisper")) {
+                Text(
+                    text = stringResource(R.string.label_model, viewModel.selectedWhisperModel.name),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
             
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -176,6 +204,39 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                     }
                 }
             }
+            
+            if (viewModel.transcriptionText.isNotEmpty() && !viewModel.isProcessing) {
+                val canSummarize = !viewModel.transcriptionText.contains("pending implementation") && 
+                                  !viewModel.transcriptionText.contains("being integrated")
+                
+                Button(
+                    onClick = { viewModel.summarizeTranscription() },
+                    enabled = !viewModel.isSummarizing && canSummarize,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (viewModel.isSummarizing) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text(stringResource(R.string.summarize))
+                    }
+                }
+                
+                if (viewModel.summaryText.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(stringResource(R.string.summary_title), fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(viewModel.summaryText)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             SelectionContainer {
                 Text(
@@ -183,12 +244,117 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
+            
+            // Download progress indicator
+            viewModel.downloadProgress?.let { progress ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(stringResource(R.string.downloading_model))
+                LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
+            }
         }
+    }
+
+    viewModel.showDownloadDialog?.let { model ->
+        DownloadDialog(
+            model = model,
+            onConfirm = { viewModel.startModelDownload(model) },
+            onDismiss = { viewModel.dismissDownloadDialog() }
+        )
     }
 
     viewModel.appInfo?.let { info ->
         AppInfoDialog(info = info, onDismiss = { viewModel.dismissAppInfo() })
     }
+
+    if (viewModel.showModelManagementDialog) {
+        ModelManagementDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.dismissModelManagement() }
+        )
+    }
+}
+
+@Composable
+fun ModelManagementDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.model_management_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.whisper_model), style = MaterialTheme.typography.titleSmall)
+                viewModel.whisperModels.forEach { model ->
+                    ModelRow(model, viewModel)
+                }
+                Spacer(Modifier.height(16.dp))
+                TextButton(
+                    onClick = { viewModel.clearModels() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Clear all downloaded models")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        }
+    )
+}
+
+@Composable
+fun ModelRow(model: AiModel, viewModel: MainViewModel) {
+    val isAvailable = remember(model) {
+        viewModel.isModelLocallyAvailable(model)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(model.name, fontWeight = FontWeight.Bold)
+            Text(model.sizeLabel, style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (isAvailable) stringResource(R.string.model_downloaded) else stringResource(R.string.model_missing),
+                color = if (isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+        if (!isAvailable) {
+            Button(onClick = { viewModel.startModelDownload(model) }) {
+                Text(stringResource(R.string.download))
+            }
+        }
+    }
+}
+
+@Composable
+fun DownloadDialog(model: AiModel, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.download_title, model.name)) },
+        text = { 
+            Column {
+                Text(model.description)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.size, model.sizeLabel), fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.download_info, model.sizeLabel))
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(stringResource(R.string.download))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 @Composable

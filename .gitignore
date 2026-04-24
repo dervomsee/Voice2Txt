@@ -17,5 +17,3 @@ app/build/
 
 # AI Agent Specific
 .artifacts/
-AGENTS.md
-GEMINI.md

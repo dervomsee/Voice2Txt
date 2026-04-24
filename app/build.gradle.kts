@@ -52,6 +52,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.mlkit.genai.speech)
+    implementation(libs.mlkit.genai.summarization)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.kotlinx.coroutines.guava)
+    implementation(libs.litert)
+    // No litert-gpu or support to avoid duplicate classes
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
