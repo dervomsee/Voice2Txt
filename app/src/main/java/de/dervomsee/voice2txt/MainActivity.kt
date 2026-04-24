@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import de.dervomsee.voice2txt.ui.AppInfo
 import de.dervomsee.voice2txt.ui.MainViewModel
 import de.dervomsee.voice2txt.ui.theme.Voice2TxtTheme
@@ -66,7 +67,7 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
         val uri: Uri? = when (intent.action) {
-            Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
             Intent.ACTION_VIEW -> intent.data
             else -> null
         }

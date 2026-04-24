@@ -63,6 +63,7 @@ class AudioConverter(private val context: Context) {
         
         var speechStarted = false
         val silenceThreshold = 500 // 16-bit PCM threshold
+        var anyDataSent = false
 
         try {
             while (true) {
@@ -93,15 +94,19 @@ class AudioConverter(private val context: Context) {
                         currentOutputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                     )
 
-                    if (!speechStarted) {
-                        // VAD: Find first sample above threshold
-                        val firstSpeechIdx = processedPcm.indexOfFirst { abs(it.toInt()) > silenceThreshold }
-                        if (firstSpeechIdx != -1) {
-                            speechStarted = true
-                            onData(processedPcm.copyOfRange(firstSpeechIdx, processedPcm.size))
+                    if (processedPcm.isNotEmpty()) {
+                        if (!speechStarted) {
+                            // VAD: Find first sample above threshold
+                            val firstSpeechIdx = processedPcm.indexOfFirst { abs(it.toInt()) > silenceThreshold }
+                            if (firstSpeechIdx != -1) {
+                                speechStarted = true
+                                anyDataSent = true
+                                onData(processedPcm.copyOfRange(firstSpeechIdx, processedPcm.size))
+                            }
+                        } else {
+                            anyDataSent = true
+                            onData(processedPcm)
                         }
-                    } else {
-                        onData(processedPcm)
                     }
                     
                     decoder.releaseOutputBuffer(outIndex, false)
@@ -109,7 +114,13 @@ class AudioConverter(private val context: Context) {
                     currentOutputFormat = decoder.outputFormat
                 }
 
-                if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) break
+                if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                    // Ensure we send something if the file was all silence or very short
+                    if (!anyDataSent) {
+                        onData(ShortArray(1600)) // 100ms of silence fallback
+                    }
+                    break
+                }
             }
         } catch (e: Exception) {
             Log.e("AudioConverter", "Decoding error: ${e.message}")
