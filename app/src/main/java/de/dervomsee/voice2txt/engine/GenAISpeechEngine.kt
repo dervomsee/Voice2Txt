@@ -4,17 +4,20 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.google.mlkit.genai.common.audio.AudioSource
 import com.google.mlkit.genai.speechrecognition.*
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
-import java.io.FileOutputStream
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.concurrent.thread
 
 class GenAISpeechEngine : SpeechEngine {
     override var name: String = "ML Kit"
         private set
+
+    private class RecognitionStoppedException : RuntimeException("Recognition session stopped")
 
     private object Status {
         const val UNAVAILABLE = 0
@@ -36,10 +39,18 @@ class GenAISpeechEngine : SpeechEngine {
             preferredMode = SpeechRecognizerOptions.Mode.MODE_BASIC
         }
 
-        return mapOf(
-            "Advanced (GenAI)" to statusToString(SpeechRecognition.getClient(advancedOptions).checkStatus()),
-            "Basic (Traditional)" to statusToString(SpeechRecognition.getClient(basicOptions).checkStatus())
-        )
+        val advancedClient = SpeechRecognition.getClient(advancedOptions)
+        val basicClient = SpeechRecognition.getClient(basicOptions)
+
+        return try {
+            mapOf(
+                "Advanced (GenAI)" to statusToString(advancedClient.checkStatus()),
+                "Basic (Traditional)" to statusToString(basicClient.checkStatus())
+            )
+        } finally {
+            try { advancedClient.close() } catch (_: Exception) {}
+            try { basicClient.close() } catch (_: Exception) {}
+        }
     }
 
     private fun statusToString(status: Int): String = when (status) {
@@ -51,13 +62,16 @@ class GenAISpeechEngine : SpeechEngine {
     }
 
     override fun transcribe(onPcmData: ((ShortArray) -> Unit) -> Unit): Flow<SpeechResult> = callbackFlow {
+        // Use a simplified locale to avoid issues with some models
+        val currentLocale = Locale.getDefault()
+
         val advancedOptions = speechRecognizerOptions {
-            locale = Locale.getDefault()
+            locale = currentLocale
             preferredMode = SpeechRecognizerOptions.Mode.MODE_ADVANCED
         }
 
         val basicOptions = speechRecognizerOptions {
-            locale = Locale.getDefault()
+            locale = currentLocale
             preferredMode = SpeechRecognizerOptions.Mode.MODE_BASIC
         }
 
@@ -69,6 +83,7 @@ class GenAISpeechEngine : SpeechEngine {
         val advancedStatus = advancedClient.checkStatus()
 
         if (advancedStatus == Status.UNAVAILABLE) {
+            try { advancedClient.close() } catch (_: Exception) {}
             client = SpeechRecognition.getClient(basicOptions)
             status = client.checkStatus()
             name = "ML Kit (Basic)"
@@ -105,7 +120,12 @@ class GenAISpeechEngine : SpeechEngine {
 
         awaitClose {
             launch {
-                try { client.stopRecognition() } catch (_: Exception) {}
+                try { 
+                    withContext(NonCancellable) {
+                        client.stopRecognition() 
+                    }
+                } catch (_: Exception) {}
+                try { client.close() } catch (_: Exception) {}
             }
         }
     }
@@ -117,21 +137,39 @@ class GenAISpeechEngine : SpeechEngine {
         val pipe = ParcelFileDescriptor.createPipe()
         val readSide = pipe[0]
         val writeSide = pipe[1]
+        
+        val isSessionActive = java.util.concurrent.atomic.AtomicBoolean(true)
 
         thread(name = "PCMStreamer") {
             try {
-                FileOutputStream(writeSide.fileDescriptor).use { output ->
+                // Use AutoCloseOutputStream to ensure PFD is handled correctly
+                ParcelFileDescriptor.AutoCloseOutputStream(writeSide).use { output ->
                     onPcmData { pcm ->
-                        val byteBuffer = java.nio.ByteBuffer.allocate(pcm.size * 2)
-                        byteBuffer.order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                        byteBuffer.asShortBuffer().put(pcm)
-                        output.write(byteBuffer.array())
+                        if (!isSessionActive.get()) throw RecognitionStoppedException()
+                        try {
+                            val byteBuffer = java.nio.ByteBuffer.allocate(pcm.size * 2)
+                            byteBuffer.order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                            byteBuffer.asShortBuffer().put(pcm)
+                            output.write(byteBuffer.array())
+                        } catch (e: java.io.IOException) {
+                            val msg = e.message ?: ""
+                            if (!msg.contains("EPIPE") && !msg.contains("Broken pipe")) {
+                                Log.e("GenAISpeechEngine", "Write error: $msg")
+                            }
+                            isSessionActive.set(false)
+                            throw RecognitionStoppedException()
+                        }
                     }
                 }
+            } catch (e: RecognitionStoppedException) {
+                Log.d("GenAISpeechEngine", "Streaming stopped (session ended)")
+            } catch (e: InterruptedException) {
+                Log.d("GenAISpeechEngine", "Streamer thread interrupted")
             } catch (e: Exception) {
                 Log.e("GenAISpeechEngine", "Pipe error: ${e.message}")
             } finally {
-                try { writeSide.close() } catch (_: Exception) {}
+                isSessionActive.set(false)
+                // writeSide is closed by AutoCloseOutputStream
             }
         }
 
@@ -150,18 +188,28 @@ class GenAISpeechEngine : SpeechEngine {
                     }
                     is SpeechRecognizerResponse.ErrorResponse -> {
                         trySend(SpeechResult.Error("Engine Error: $response"))
-                        close()
+                        isSessionActive.set(false)
+                        channel.close()
                     }
                     is SpeechRecognizerResponse.CompletedResponse -> {
-                        close()
+                        isSessionActive.set(false)
+                        channel.close()
                     }
                 }
             }
         } catch (e: Exception) {
+            isSessionActive.set(false)
+            if (e is kotlinx.coroutines.CancellationException) {
+                throw e
+            }
             trySend(SpeechResult.Error("Session failed: ${e.localizedMessage}"))
-            close()
+            channel.close()
         } finally {
+            isSessionActive.set(false)
+            // CRITICAL: We only close the readSide here, AFTER startRecognition(request).collect finishes.
+            // Closing it earlier in a separate launch block (as we did before) causes INVALID_REQUEST.
             try { readSide.close() } catch (_: Exception) {}
+            // writeSide is closed by the PCMStreamer thread's .use block.
         }
     }
 }

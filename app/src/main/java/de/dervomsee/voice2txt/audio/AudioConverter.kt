@@ -62,7 +62,7 @@ class AudioConverter(private val context: Context) {
         var currentOutputFormat = decoder.outputFormat
         
         var speechStarted = false
-        val silenceThreshold = 500 // 16-bit PCM threshold
+        val silenceThreshold = 500 // Increased threshold for VAD to avoid noise
         var anyDataSent = false
 
         try {
@@ -85,28 +85,44 @@ class AudioConverter(private val context: Context) {
                 val outIndex = decoder.dequeueOutputBuffer(info, 10000)
                 if (outIndex >= 0) {
                     val outputBuffer = decoder.getOutputBuffer(outIndex)!!
+                    
+                    // Respect buffer offset and limit
+                    outputBuffer.position(info.offset)
+                    outputBuffer.limit(info.offset + info.size)
+
                     val pcmData = ShortArray(info.size / 2)
                     outputBuffer.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(pcmData)
 
-                    val processedPcm = processPcm(
-                        pcmData,
-                        currentOutputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE),
+                    val sampleRate = if (currentOutputFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                        currentOutputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                    } else 16000
+
+                    val channels = if (currentOutputFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
                         currentOutputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                    )
+                    } else 1
+
+                    var processedPcm = processPcm(pcmData, sampleRate, channels)
+
+                    // Trim leading silence to satisfy ML Kit
+                    if (!speechStarted && processedPcm.isNotEmpty()) {
+                        var firstNonSilence = -1
+                        for (i in processedPcm.indices) {
+                            if (abs(processedPcm[i].toInt()) > silenceThreshold) {
+                                firstNonSilence = i
+                                break
+                            }
+                        }
+                        if (firstNonSilence != -1) {
+                            processedPcm = processedPcm.copyOfRange(firstNonSilence, processedPcm.size)
+                            speechStarted = true
+                        } else {
+                            processedPcm = ShortArray(0)
+                        }
+                    }
 
                     if (processedPcm.isNotEmpty()) {
-                        if (!speechStarted) {
-                            // VAD: Find first sample above threshold
-                            val firstSpeechIdx = processedPcm.indexOfFirst { abs(it.toInt()) > silenceThreshold }
-                            if (firstSpeechIdx != -1) {
-                                speechStarted = true
-                                anyDataSent = true
-                                onData(processedPcm.copyOfRange(firstSpeechIdx, processedPcm.size))
-                            }
-                        } else {
-                            anyDataSent = true
-                            onData(processedPcm)
-                        }
+                        anyDataSent = true
+                        onData(processedPcm)
                     }
                     
                     decoder.releaseOutputBuffer(outIndex, false)
@@ -123,7 +139,13 @@ class AudioConverter(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e("AudioConverter", "Decoding error: ${e.message}")
+            val msg = e.message ?: ""
+            val name = e.javaClass.simpleName
+            if (msg.contains("EPIPE") || msg.contains("Broken pipe") || name.contains("RecognitionStoppedException")) {
+                Log.d("AudioConverter", "Pipe closed by consumer (expected at end of session)")
+            } else {
+                Log.e("AudioConverter", "Decoding error: $msg ($name)", e)
+            }
         } finally {
             try { decoder.stop() } catch (_: Exception) {}
             decoder.release()

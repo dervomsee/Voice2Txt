@@ -170,8 +170,8 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                
-                if (error.contains("PERMISSION")) {
+
+                if (error.contains("PERMISSION") || error.contains("permission")) {
                     Button(onClick = onGrantPermission) {
                         Text(stringResource(R.string.grant_permission))
                     }

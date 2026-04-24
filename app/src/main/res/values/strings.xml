@@ -1,7 +1,7 @@
 <resources>
-    <string name="app_name">Voice2Txt2</string>
+    <string name="app_name">Voice2Txt</string>
     <string name="select_engine">Select Engine</string>
-    <string name="transcription_hint">Transcription will appear here…</string>
+    <string name="transcription_hint">Share a audio file and the transcription will appear here…</string>
     <string name="processing">Processing audio…</string>
     <string name="error_title">Error</string>
     <string name="share_text">Share Text</string>
