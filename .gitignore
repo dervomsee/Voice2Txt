@@ -14,9 +14,8 @@ app/build/
 *.apk
 *.aar
 *.jks
+*.aab
 
 # AI Agent Specific
 .artifacts/
-AGENTS.md
-GEMINI.md
-*.aab
+
