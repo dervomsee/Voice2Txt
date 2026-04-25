@@ -178,26 +178,33 @@ class GenAISpeechEngine : SpeechEngine {
         }
 
         try {
+            Log.d("GenAISpeechEngine", "Starting ML Kit recognition...")
             client.startRecognition(request).collect { response ->
                 when (response) {
                     is SpeechRecognizerResponse.PartialTextResponse -> {
+                        Log.v("GenAISpeechEngine", "Partial: ${response.text}")
                         trySend(SpeechResult.Partial(response.text))
                     }
                     is SpeechRecognizerResponse.FinalTextResponse -> {
+                        Log.d("GenAISpeechEngine", "Final: ${response.text}")
                         trySend(SpeechResult.Final(response.text))
                     }
                     is SpeechRecognizerResponse.ErrorResponse -> {
-                        trySend(SpeechResult.Error("Engine Error: $response"))
+                        val error = response.e
+                        Log.e("GenAISpeechEngine", "ML Kit Error Response: ${error.message} (Code: ${error.errorCode})", error)
+                        trySend(SpeechResult.Error("Engine Error: ${error.message} (Code: ${error.errorCode})"))
                         isSessionActive.set(false)
                         channel.close()
                     }
                     is SpeechRecognizerResponse.CompletedResponse -> {
+                        Log.d("GenAISpeechEngine", "Recognition completed")
                         isSessionActive.set(false)
                         channel.close()
                     }
                 }
             }
         } catch (e: Exception) {
+            Log.e("GenAISpeechEngine", "Exception during startRecognition collect: ${e.localizedMessage}", e)
             isSessionActive.set(false)
             if (e is kotlinx.coroutines.CancellationException) {
                 throw e
