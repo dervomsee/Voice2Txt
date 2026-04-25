@@ -2,8 +2,13 @@ name: Build and Release APK
 
 on:
   push:
+    branches:
+      - '**'
     tags:
       - 'v*' # Triggers automatically when pushing a tag like "v1.0"
+  pull_request:
+    branches:
+      - '**'
   workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
 
 jobs:
@@ -30,7 +35,7 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
+        uses: ilharp/sign-android-release@v2
         id: sign_app
         with:
           releaseDirectory: app/build/outputs/apk/release
@@ -38,8 +43,6 @@ jobs:
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
 
       # 1. Provide the built APK as a normal download in the action (good for manual testing)
       - name: Upload APK Artifact
