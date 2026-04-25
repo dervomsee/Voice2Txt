@@ -8,6 +8,7 @@ import android.net.Uri
 import android.util.Log
 import java.nio.ByteOrder
 import kotlin.math.abs
+import kotlin.math.log2
 import kotlin.math.sqrt
 
 class AudioConverter(private val context: Context, private var silenceThreshold: Int = 500) {
@@ -128,9 +129,9 @@ class AudioConverter(private val context: Context, private var silenceThreshold:
                     if (isBandpassEnabled && processedPcm.isNotEmpty()) {
                         if (bandpassFilter == null) {
                             // Geometric mean for center frequency
-                            val center = kotlin.math.sqrt(lowFreq * highFreq)
+                            val center = sqrt(lowFreq * highFreq)
                             // Bandwidth in octaves
-                            val octaves = kotlin.math.log2(highFreq / lowFreq)
+                            val octaves = log2(highFreq / lowFreq)
                             bandpassFilter = BandpassFilter(16000.0, center, octaves)
                         }
                         for (i in processedPcm.indices) {
@@ -150,7 +151,7 @@ class AudioConverter(private val context: Context, private var silenceThreshold:
                         
                         if (hasSpeech) {
                             speechStarted = true
-                        } else {
+                        } else if (!speechStarted) {
                             processedPcm = ShortArray(0)
                         }
                     }
@@ -195,7 +196,7 @@ class AudioConverter(private val context: Context, private var silenceThreshold:
             pcm = convertToMono(pcm, channels)
         }
         if (inputRate != 16000) {
-            pcm = resample(pcm, inputRate, 16000)
+            pcm = resample(pcm, inputRate)
         }
         return pcm
     }
@@ -212,7 +213,8 @@ class AudioConverter(private val context: Context, private var silenceThreshold:
         return mono
     }
 
-    private fun resample(input: ShortArray, inputRate: Int, outputRate: Int): ShortArray {
+    private fun resample(input: ShortArray, inputRate: Int): ShortArray {
+        val outputRate = 16000
         val newLength = (input.size.toLong() * outputRate / inputRate).toInt()
         val output = ShortArray(newLength)
         for (i in 0 until newLength) {
@@ -228,12 +230,4 @@ class AudioConverter(private val context: Context, private var silenceThreshold:
         return output
     }
 
-    private fun calculateRms(buffer: ShortArray): Double {
-        if (buffer.isEmpty()) return 0.0
-        var sum = 0.0
-        for (s in buffer) {
-            sum += s.toDouble() * s.toDouble()
-        }
-        return sqrt(sum / buffer.size)
-    }
 }

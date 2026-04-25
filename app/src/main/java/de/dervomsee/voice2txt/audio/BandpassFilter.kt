@@ -1,16 +1,15 @@
 package de.dervomsee.voice2txt.audio
 
 import kotlin.math.PI
-import kotlin.math.tan
 
 /**
  * A simple 2nd order IIR Bandpass Filter using the Bilinear Transform.
  * Designed to filter audio to the human speech range (e.g., 300Hz - 3000Hz).
  */
 class BandpassFilter(
-    private val sampleRate: Double,
-    private val centerFreq: Double,
-    private val bandwidth: Double
+    sampleRate: Double,
+    centerFreq: Double,
+    bandwidth: Double
 ) {
     private var b0 = 0.0
     private var b1 = 0.0

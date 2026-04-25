@@ -7,6 +7,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Build
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -19,7 +20,6 @@ import de.dervomsee.voice2txt.engine.SpeechResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.sqrt
 
 data class AppInfo(
     val appVersion: String,
@@ -58,16 +58,16 @@ data class AppInfo(
     var debugPlayAudio by mutableStateOf(settingsRepository.debugPlayAudio)
         private set
 
-    var silenceThreshold by mutableStateOf(settingsRepository.silenceThreshold)
+    var silenceThreshold by mutableIntStateOf(settingsRepository.silenceThreshold)
         private set
 
     var enableBandpass by mutableStateOf(settingsRepository.enableBandpass)
         private set
 
-    var lowFreq by mutableStateOf(settingsRepository.lowFreq)
+    var lowFreq by mutableIntStateOf(settingsRepository.lowFreq)
         private set
 
-    var highFreq by mutableStateOf(settingsRepository.highFreq)
+    var highFreq by mutableIntStateOf(settingsRepository.highFreq)
         private set
 
     var audioStats by mutableStateOf<AudioStats?>(null)
@@ -236,7 +236,7 @@ data class AppInfo(
             try {
                 stop()
                 release()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // ignore
             }
         }

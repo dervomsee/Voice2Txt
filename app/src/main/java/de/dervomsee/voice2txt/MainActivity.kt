@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
@@ -36,7 +35,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission(),
     ) { isGranted: Boolean ->
         if (isGranted) {
             pendingUri?.let { viewModel.processAudio(it) }
@@ -54,9 +53,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             Voice2TxtTheme {
-                MainScreen(viewModel, onGrantPermission = {
+                MainScreen(viewModel) {
                     requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                })
+                }
             }
         }
     }
@@ -88,8 +87,8 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
-    var showMenu by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(value = false) }
+    val showSettings = remember { mutableStateOf(value = false) }
 
     Scaffold(
         topBar = {
@@ -135,7 +134,7 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                                 }
                             },
                             onClick = {
-                                showSettings = true
+                                showSettings.value = true
                                 showMenu = false
                             }
                         )
@@ -146,14 +145,15 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
         floatingActionButton = {
             if (viewModel.transcriptionText.isNotEmpty()) {
                 val context = androidx.compose.ui.platform.LocalContext.current
+                val shareText = stringResource(R.string.share_text)
                 FloatingActionButton(onClick = {
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, viewModel.transcriptionText)
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.share_text)))
+                    context.startActivity(Intent.createChooser(shareIntent, shareText))
                 }) {
-                    Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share_text))
+                    Icon(Icons.Default.Share, contentDescription = shareText)
                 }
             }
         }
@@ -207,10 +207,10 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
         AppInfoDialog(info = info, onDismiss = { viewModel.dismissAppInfo() })
     }
 
-    if (showSettings) {
+    if (showSettings.value) {
         SettingsDialog(
             viewModel = viewModel,
-            onDismiss = { showSettings = false }
+            onDismiss = { showSettings.value = false }
         )
     }
 }
