@@ -44,17 +44,34 @@ jobs:
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Rename APK
+        id: rename
+        run: |
+          SIGNED_APK="${{ steps.sign_app.outputs.signedFile }}"
+          
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # For tags, use just the tag name (e.g., Voice2Txt-v1.0.apk)
+            NEW_APK="$(dirname "$SIGNED_APK")/Voice2Txt-${{ github.ref_name }}.apk"
+          else
+            # For branches, append the short Git hash (e.g., Voice2Txt-main-a1b2c3d.apk)
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            NEW_APK="$(dirname "$SIGNED_APK")/Voice2Txt-${{ github.ref_name }}-$SHORT_SHA.apk"
+          fi
+          
+          mv "$SIGNED_APK" "$NEW_APK"
+          echo "apk_path=$NEW_APK" >> $GITHUB_OUTPUT
+
       # 1. Provide the built APK as a normal download in the action (good for manual testing)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Voice2Txt-Release
-          path: ${{ steps.sign_app.outputs.signedFile }}
+          path: ${{ steps.rename.outputs.apk_path }}
 
       # 2. Create an official GitHub Release (only happens when pushing a tag)
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ${{ steps.sign_app.outputs.signedFile }}
+          files: ${{ steps.rename.outputs.apk_path }}
           generate_release_notes: true
