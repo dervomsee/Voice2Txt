@@ -2,6 +2,9 @@ package de.dervomsee.voice2txt.ui
 
 import android.app.Application
 import android.net.Uri
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -9,12 +12,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.dervomsee.voice2txt.audio.AudioConverter
+import de.dervomsee.voice2txt.data.SettingsRepository
 import de.dervomsee.voice2txt.engine.GenAISpeechEngine
 import de.dervomsee.voice2txt.engine.SpeechEngine
 import de.dervomsee.voice2txt.engine.SpeechResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.sqrt
 
 data class AppInfo(
     val appVersion: String,
@@ -24,9 +29,13 @@ data class AppInfo(
     val aiStatus: Map<String, String>
 )
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+    class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val audioConverter = AudioConverter(application)
+    private val settingsRepository = SettingsRepository(application)
+    private val audioConverter = AudioConverter(application, settingsRepository.silenceThreshold).apply {
+        setBandpassEnabled(settingsRepository.enableBandpass)
+        setBandpassFrequencies(settingsRepository.lowFreq, settingsRepository.highFreq)
+    }
     private val genAiEngine = GenAISpeechEngine()
 
     val engines = listOf(genAiEngine)
@@ -45,6 +54,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     var appInfo by mutableStateOf<AppInfo?>(null)
         private set
+
+    var debugPlayAudio by mutableStateOf(settingsRepository.debugPlayAudio)
+        private set
+
+    var silenceThreshold by mutableStateOf(settingsRepository.silenceThreshold)
+        private set
+
+    var enableBandpass by mutableStateOf(settingsRepository.enableBandpass)
+        private set
+
+    var lowFreq by mutableStateOf(settingsRepository.lowFreq)
+        private set
+
+    var highFreq by mutableStateOf(settingsRepository.highFreq)
+        private set
+
+    var audioStats by mutableStateOf<AudioStats?>(null)
+        private set
+
+    private var debugAudioTrack: AudioTrack? = null
+
+    data class AudioStats(
+        val min: Int,
+        val max: Int,
+        val peak: Int
+    )
+
+    fun toggleDebugPlayAudio() {
+        debugPlayAudio = !debugPlayAudio
+        settingsRepository.debugPlayAudio = debugPlayAudio
+    }
+
+    fun updateSilenceThreshold(threshold: Int) {
+        silenceThreshold = threshold
+        settingsRepository.silenceThreshold = threshold
+        audioConverter.setSilenceThreshold(threshold)
+    }
+
+    fun toggleBandpass() {
+        enableBandpass = !enableBandpass
+        settingsRepository.enableBandpass = enableBandpass
+        audioConverter.setBandpassEnabled(enableBandpass)
+    }
+
+    fun updateBandpassFrequencies(low: Int, high: Int) {
+        lowFreq = low
+        highFreq = high
+        settingsRepository.lowFreq = low
+        settingsRepository.highFreq = high
+        audioConverter.setBandpassFrequencies(low, high)
+    }
 
     fun selectEngine(engine: SpeechEngine) {
         currentEngine = engine
@@ -78,9 +138,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             try {
                 var finalizedText = ""
+                audioStats = null
+                if (debugPlayAudio) {
+                    initDebugAudioTrack()
+                }
                 withContext(Dispatchers.IO) {
                     currentEngine.transcribe { onData ->
-                        audioConverter.convertToPcm(uri, onData)
+                        audioConverter.convertToPcm(uri) { pcm ->
+                            if (pcm.isNotEmpty()) {
+                                updateStats(pcm)
+                                if (debugPlayAudio) {
+                                    debugAudioTrack?.write(pcm, 0, pcm.size)
+                                }
+                            }
+                            onData(pcm)
+                        }
                     }.collect { result ->
                         withContext(Dispatchers.Main) {
                             when (result) {
@@ -103,7 +175,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 errorText = e.localizedMessage ?: "Processing error"
             } finally {
                 isProcessing = false
+                releaseDebugAudioTrack()
             }
         }
+    }
+
+    private fun updateStats(pcm: ShortArray) {
+        var min = 0
+        var max = 0
+        var sumSq = 0.0
+        for (s in pcm) {
+            val v = s.toInt()
+            if (v < min) min = v
+            if (v > max) max = v
+            sumSq += v.toDouble() * v.toDouble()
+        }
+        val peak = kotlin.math.max(kotlin.math.abs(min), kotlin.math.abs(max))
+
+        // Update with the most "extreme" values seen so far for tuning
+        val current = audioStats
+        audioStats = if (current == null) {
+            AudioStats(min, max, peak)
+        } else {
+            AudioStats(
+                kotlin.math.min(current.min, min),
+                kotlin.math.max(current.max, max),
+                peak // Peak is current for this chunk
+            )
+        }
+    }
+
+    private fun initDebugAudioTrack() {
+        val minBufferSize = AudioTrack.getMinBufferSize(
+            16000,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+        debugAudioTrack = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(16000)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(minBufferSize * 4)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+        debugAudioTrack?.play()
+    }
+
+    private fun releaseDebugAudioTrack() {
+        debugAudioTrack?.apply {
+            try {
+                stop()
+                release()
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        debugAudioTrack = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        releaseDebugAudioTrack()
     }
 }

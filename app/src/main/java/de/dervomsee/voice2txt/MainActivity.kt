@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
@@ -87,6 +89,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
     var showMenu by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -121,6 +124,19 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
                             onClick = { 
                                 viewModel.loadAppInfo()
                                 showMenu = false 
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Settings, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.settings))
+                                }
+                            },
+                            onClick = {
+                                showSettings = true
+                                showMenu = false
                             }
                         )
                     }
@@ -190,6 +206,82 @@ fun MainScreen(viewModel: MainViewModel, onGrantPermission: () -> Unit) {
     viewModel.appInfo?.let { info ->
         AppInfoDialog(info = info, onDismiss = { viewModel.dismissAppInfo() })
     }
+
+    if (showSettings) {
+        SettingsDialog(
+            viewModel = viewModel,
+            onDismiss = { showSettings = false }
+        )
+    }
+}
+
+@Composable
+fun SettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings)) },
+        text = {
+            Column {
+                viewModel.audioStats?.let { stats ->
+                    Text(
+                        text = stringResource(R.string.audio_stats),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(stringResource(R.string.min_max, stats.min, stats.max))
+                    Text(stringResource(R.string.peak_value, stats.peak))
+                    Spacer(Modifier.height(16.dp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.debug_play_audio))
+                    Spacer(Modifier.weight(1f))
+                    Switch(
+                        checked = viewModel.debugPlayAudio,
+                        onCheckedChange = { viewModel.toggleDebugPlayAudio() }
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.enable_bandpass))
+                    Spacer(Modifier.weight(1f))
+                    Switch(
+                        checked = viewModel.enableBandpass,
+                        onCheckedChange = { viewModel.toggleBandpass() }
+                    )
+                }
+                if (viewModel.enableBandpass) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.low_freq, viewModel.lowFreq))
+                    Slider(
+                        value = viewModel.lowFreq.toFloat(),
+                        onValueChange = { viewModel.updateBandpassFrequencies(it.toInt(), viewModel.highFreq) },
+                        valueRange = 50f..1000f,
+                        steps = 19
+                    )
+                    Text(stringResource(R.string.high_freq, viewModel.highFreq))
+                    Slider(
+                        value = viewModel.highFreq.toFloat(),
+                        onValueChange = { viewModel.updateBandpassFrequencies(viewModel.lowFreq, it.toInt()) },
+                        valueRange = 1000f..6000f,
+                        steps = 13
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(stringResource(R.string.silence_threshold) + ": ${viewModel.silenceThreshold}")
+                Slider(
+                    value = viewModel.silenceThreshold.toFloat(),
+                    onValueChange = { viewModel.updateSilenceThreshold(it.toInt()) },
+                    valueRange = 0f..2000f,
+                    steps = 50
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        }
+    )
 }
 
 @Composable

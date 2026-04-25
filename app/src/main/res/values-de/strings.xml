@@ -16,4 +16,13 @@
     <string name="close">Schließen</string>
     <string name="permission_required">Das Mikrofon-Recht wird für die Spracherkennung benötigt.</string>
     <string name="grant_permission">Berechtigung erteilen</string>
+    <string name="debug_play_audio">Debug: Audio abspielen</string>
+    <string name="silence_threshold">Stille-Schwellenwert</string>
+    <string name="settings">Einstellungen</string>
+    <string name="audio_stats">Audio-Statistik (Aktueller Block)</string>
+    <string name="min_max">Min: %1$d | Max: %2$d</string>
+    <string name="peak_value">Aktueller Peak: %1$d</string>
+    <string name="enable_bandpass">Sprach-Filter (Bandpass)</string>
+    <string name="low_freq">Unterer Cut: %1$d Hz</string>
+    <string name="high_freq">Oberer Cut: %1$d Hz</string>
 </resources>

@@ -8,8 +8,30 @@ import android.net.Uri
 import android.util.Log
 import java.nio.ByteOrder
 import kotlin.math.abs
+import kotlin.math.sqrt
 
-class AudioConverter(private val context: Context) {
+class AudioConverter(private val context: Context, private var silenceThreshold: Int = 500) {
+
+    private var bandpassFilter: BandpassFilter? = null
+    private var isBandpassEnabled = true
+    private var lowFreq = 300.0
+    private var highFreq = 3000.0
+
+    fun setSilenceThreshold(threshold: Int) {
+        silenceThreshold = threshold
+    }
+
+    fun setBandpassEnabled(enabled: Boolean) {
+        isBandpassEnabled = enabled
+    }
+
+    fun setBandpassFrequencies(low: Int, high: Int) {
+        if (low.toDouble() != lowFreq || high.toDouble() != highFreq) {
+            lowFreq = low.toDouble()
+            highFreq = high.toDouble()
+            bandpassFilter = null // Force re-creation with new frequencies
+        }
+    }
 
     /**
      * Converts audio from the given [uri] to 16kHz Mono 16-bit PCM.
@@ -62,7 +84,6 @@ class AudioConverter(private val context: Context) {
         var currentOutputFormat = decoder.outputFormat
         
         var speechStarted = false
-        val silenceThreshold = 500 // Increased threshold for VAD to avoid noise
         var anyDataSent = false
 
         try {
@@ -103,17 +124,31 @@ class AudioConverter(private val context: Context) {
 
                     var processedPcm = processPcm(pcmData, sampleRate, channels)
 
-                    // Trim leading silence to satisfy ML Kit
-                    if (!speechStarted && processedPcm.isNotEmpty()) {
-                        var firstNonSilence = -1
+                    // Apply Bandpass filter (adjustable range) if enabled
+                    if (isBandpassEnabled && processedPcm.isNotEmpty()) {
+                        if (bandpassFilter == null) {
+                            // Geometric mean for center frequency
+                            val center = kotlin.math.sqrt(lowFreq * highFreq)
+                            // Bandwidth in octaves
+                            val octaves = kotlin.math.log2(highFreq / lowFreq)
+                            bandpassFilter = BandpassFilter(16000.0, center, octaves)
+                        }
                         for (i in processedPcm.indices) {
-                            if (abs(processedPcm[i].toInt()) > silenceThreshold) {
-                                firstNonSilence = i
+                            processedPcm[i] = bandpassFilter!!.process(processedPcm[i])
+                        }
+                    }
+
+                    // Noise Gate / VAD: Filter silence throughout the entire audio using peak detection
+                    if (processedPcm.isNotEmpty()) {
+                        var hasSpeech = false
+                        for (sample in processedPcm) {
+                            if (abs(sample.toInt()) > silenceThreshold) {
+                                hasSpeech = true
                                 break
                             }
                         }
-                        if (firstNonSilence != -1) {
-                            processedPcm = processedPcm.copyOfRange(firstNonSilence, processedPcm.size)
+                        
+                        if (hasSpeech) {
                             speechStarted = true
                         } else {
                             processedPcm = ShortArray(0)
@@ -150,6 +185,7 @@ class AudioConverter(private val context: Context) {
             try { decoder.stop() } catch (_: Exception) {}
             decoder.release()
             extractor.release()
+            bandpassFilter?.reset()
         }
     }
 
@@ -190,5 +226,14 @@ class AudioConverter(private val context: Context) {
             }
         }
         return output
+    }
+
+    private fun calculateRms(buffer: ShortArray): Double {
+        if (buffer.isEmpty()) return 0.0
+        var sum = 0.0
+        for (s in buffer) {
+            sum += s.toDouble() * s.toDouble()
+        }
+        return sqrt(sum / buffer.size)
     }
 }
