@@ -32,6 +32,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var selectedLanguage by mutableStateOf("de")
         private set
 
+    var useGpu by mutableStateOf(false)
+        private set
+
     private var whisperContext: WhisperContext? = null
     private val audioRecorder = AudioRecorder()
     private val recordedData = mutableListOf<Float>()
@@ -69,9 +72,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                statusMessage = "Loading model..."
+                statusMessage = "Loading model (GPU: $useGpu)..."
+                whisperContext?.release()
                 val modelFile = ModelDownloader.getModelFile(getApplication())
-                whisperContext = WhisperContext.createContextFromFile(modelFile.absolutePath)
+                whisperContext = WhisperContext.createContextFromFile(modelFile.absolutePath, useGpu)
                 statusMessage = "Model loaded. Ready to record."
             } catch (e: Exception) {
                 statusMessage = "Failed to load model: ${e.localizedMessage}"
@@ -89,6 +93,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLanguage(lang: String) {
         selectedLanguage = lang
+    }
+
+    fun toggleGpu(enabled: Boolean) {
+        useGpu = enabled
+        // Re-load model to apply GPU setting
+        loadModel()
     }
 
     private fun startRecording() {

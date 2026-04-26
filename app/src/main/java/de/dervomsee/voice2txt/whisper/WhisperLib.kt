@@ -5,7 +5,7 @@ object WhisperLib {
         System.loadLibrary("voice2txt")
     }
 
-    external fun initContext(modelPath: String): Long
+    external fun initContext(modelPath: String, useGpu: Boolean): Long
     external fun freeContext(contextPtr: Long)
     external fun fullTranscribe(contextPtr: Long, numThreads: Int, audioData: FloatArray, language: String): Int
     external fun getTextSegmentCount(contextPtr: Long): Int

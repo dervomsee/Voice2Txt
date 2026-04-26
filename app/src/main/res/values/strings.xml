@@ -8,4 +8,5 @@
     <string name="downloading_progress">Downloading: %1$d%%</string>
     <string name="lang_de">DE</string>
     <string name="lang_en">EN</string>
+    <string name="gpu_label">GPU (Vulkan)</string>
 </resources>

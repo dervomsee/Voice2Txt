@@ -81,6 +81,21 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 Text(stringResource(R.string.lang_en))
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.gpu_label))
+                Switch(
+                    checked = viewModel.useGpu,
+                    onCheckedChange = { viewModel.toggleGpu(it) },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(

@@ -9,8 +9,8 @@ class WhisperContext private constructor(private var ptr: Long) {
     companion object {
         private const val TAG = "WhisperContext"
 
-        fun createContextFromFile(modelPath: String): WhisperContext {
-            val ptr = WhisperLib.initContext(modelPath)
+        fun createContextFromFile(modelPath: String, useGpu: Boolean = false): WhisperContext {
+            val ptr = WhisperLib.initContext(modelPath, useGpu)
             if (ptr == 0L) {
                 throw RuntimeException("Failed to initialize Whisper context from $modelPath")
             }

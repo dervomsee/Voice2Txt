@@ -15,6 +15,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(whisper_cpp)
 
+# Enable Vulkan
+set(GGML_VULKAN ON CACHE BOOL "vulkan" FORCE)
+
+# Find Vulkan package
+find_package(Vulkan REQUIRED)
+
 # Define our JNI library
 add_library(
     voice2txt
@@ -22,12 +28,13 @@ add_library(
     jni.c
 )
 
-# Link log library and whisper.cpp (which should be available via FetchContent)
+# Link log library, whisper.cpp, and Vulkan
 target_link_libraries(
     voice2txt
     whisper
     log
     android
+    Vulkan::Vulkan
 )
 
 # Include directories for whisper.cpp

@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "whisper.h"
+#include "ggml.h"
+
+#ifdef GGML_USE_VULKAN
+#include "ggml-vulkan.h"
+#endif
 
 #define TAG "Voice2Txt-JNI"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -12,9 +17,20 @@
 
 JNIEXPORT jlong JNICALL
 Java_de_dervomsee_voice2txt_whisper_WhisperLib_initContext(
-        JNIEnv *env, jobject thiz, jstring model_path_str) {
+        JNIEnv *env, jobject thiz, jstring model_path_str, jboolean use_gpu) {
     const char *model_path_chars = (*env)->GetStringUTFChars(env, model_path_str, NULL);
-    struct whisper_context *context = whisper_init_from_file_with_params(model_path_chars, whisper_context_default_params());
+
+    struct whisper_context_params params = whisper_context_default_params();
+
+    if (use_gpu) {
+        params.use_gpu = true;
+        LOGI("Initializing with GPU (Vulkan) support requested");
+    } else {
+        params.use_gpu = false;
+        LOGI("Initializing with CPU only");
+    }
+
+    struct whisper_context *context = whisper_init_from_file_with_params(model_path_chars, params);
     (*env)->ReleaseStringUTFChars(env, model_path_str, model_path_chars);
     return (jlong) context;
 }
