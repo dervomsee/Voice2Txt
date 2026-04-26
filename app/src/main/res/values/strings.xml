@@ -6,4 +6,6 @@
     <string name="download_model">Download Model</string>
     <string name="status_label">Status: %1$s</string>
     <string name="downloading_progress">Downloading: %1$d%%</string>
+    <string name="lang_de">DE</string>
+    <string name="lang_en">EN</string>
 </resources>

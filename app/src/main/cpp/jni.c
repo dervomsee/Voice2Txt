@@ -28,19 +28,21 @@ Java_de_dervomsee_voice2txt_whisper_WhisperLib_freeContext(
 
 JNIEXPORT jint JNICALL
 Java_de_dervomsee_voice2txt_whisper_WhisperLib_fullTranscribe(
-        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data) {
+        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring lang_str) {
     struct whisper_context *context = (struct whisper_context *) context_ptr;
     jfloat *audio_data_arr = (*env)->GetFloatArrayElements(env, audio_data, NULL);
     const jsize audio_data_length = (*env)->GetArrayLength(env, audio_data);
+    const char *lang_chars = (*env)->GetStringUTFChars(env, lang_str, NULL);
 
     struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.n_threads = num_threads;
     params.print_realtime = false;
     params.print_progress = false;
-    params.language = "en"; // Defaulting to en for tiny model
+    params.language = lang_chars;
 
     int result = whisper_full(context, params, audio_data_arr, audio_data_length);
 
+    (*env)->ReleaseStringUTFChars(env, lang_str, lang_chars);
     (*env)->ReleaseFloatArrayElements(env, audio_data, audio_data_arr, JNI_ABORT);
     return result;
 }

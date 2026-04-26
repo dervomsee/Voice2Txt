@@ -29,9 +29,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var statusMessage by mutableStateOf("")
         private set
 
+    var selectedLanguage by mutableStateOf("de")
+        private set
+
     private var whisperContext: WhisperContext? = null
     private val audioRecorder = AudioRecorder()
     private val recordedData = mutableListOf<Float>()
+    private val availableThreads = Runtime.getRuntime().availableProcessors()
 
     init {
         checkModel()
@@ -83,6 +87,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setLanguage(lang: String) {
+        selectedLanguage = lang
+    }
+
     private fun startRecording() {
         if (whisperContext == null) {
             statusMessage = "Please load model first."
@@ -106,7 +114,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val data = recordedData.toFloatArray()
             if (data.isNotEmpty()) {
-                val result = whisperContext?.transcribeData(data) ?: ""
+                val result = whisperContext?.transcribeData(data, selectedLanguage, availableThreads) ?: ""
                 transcription = result
                 statusMessage = "Transcription finished."
             } else {

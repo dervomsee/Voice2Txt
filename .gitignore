@@ -48,3 +48,4 @@ local.properties
 /whisper.android.example/lib/.gitignore
 /whisper.android.example/lib/build.gradle
 /whisper.android.example/README.md
+/.kotlin/sessions/

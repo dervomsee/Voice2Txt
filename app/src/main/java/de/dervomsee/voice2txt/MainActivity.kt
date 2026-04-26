@@ -65,6 +65,24 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.lang_de))
+                Switch(
+                    checked = viewModel.selectedLanguage == "en",
+                    onCheckedChange = { isEn ->
+                        viewModel.setLanguage(if (isEn) "en" else "de")
+                    },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                Text(stringResource(R.string.lang_en))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Box(
                 modifier = Modifier
                     .weight(1f)
