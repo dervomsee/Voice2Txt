@@ -37,11 +37,20 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug") // Temporary for easier testing
+            
+            externalNativeBuild {
+                cmake {
+                    cppFlags("-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
+                    arguments("-DCMAKE_BUILD_TYPE=Release")
+                }
+            }
         }
     }
     compileOptions {
