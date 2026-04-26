@@ -10,15 +10,20 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.dervomsee.voice2txt.ui.MainViewModel
 import de.dervomsee.voice2txt.ui.theme.Voice2TxtTheme
+import de.dervomsee.voice2txt.whisper.ModelDownloader
+import de.dervomsee.voice2txt.whisper.availableModels
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +39,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
+    val context = LocalContext.current
+    var showModelDialog by remember { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -51,8 +59,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = stringResource(R.string.status_label, viewModel.statusMessage),
-                style = MaterialTheme.typography.bodyMedium
+                text = viewModel.statusMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
             )
 
             if (viewModel.isDownloading) {
@@ -64,6 +73,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Model Selection Button
+            Button(onClick = { showModelDialog = true }) {
+                Text(stringResource(R.string.change_model) + ": ${viewModel.selectedModel.name}")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -96,6 +112,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 )
             }
 
+            if (viewModel.lastPerformanceRtf > 0f) {
+                Text(
+                    text = stringResource(R.string.performance_label, viewModel.lastPerformanceRtf),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(
@@ -116,8 +140,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                if (viewModel.statusMessage.contains("Download required", ignoreCase = true)) {
-                    Button(onClick = { viewModel.downloadModel() }) {
+                val isDownloaded = ModelDownloader.isModelDownloaded(context, viewModel.selectedModel.fileName)
+                
+                if (!isDownloaded) {
+                    Button(onClick = { viewModel.downloadModel() }, enabled = !viewModel.isDownloading) {
                         Text(stringResource(R.string.download_model))
                     }
                 } else {
@@ -135,5 +161,78 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    if (showModelDialog) {
+        AlertDialog(
+            onDismissRequest = { showModelDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.select_model_title))
+                    IconButton(onClick = { viewModel.refreshModels() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.refresh_models)
+                        )
+                    }
+                }
+            },
+            text = {
+                Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                    if (viewModel.isLoadingModels) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator()
+                            Text(
+                                text = stringResource(R.string.loading_models),
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    } else {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            viewModel.availableModelsList.forEach { model ->
+                                val downloaded = ModelDownloader.isModelDownloaded(context, model.fileName)
+                                TextButton(
+                                    onClick = {
+                                        viewModel.selectModel(model)
+                                        showModelDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = model.name,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (downloaded) {
+                                            Text(
+                                                text = stringResource(R.string.model_downloaded_tag),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showModelDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }

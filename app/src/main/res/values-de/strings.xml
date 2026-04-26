@@ -9,4 +9,15 @@
     <string name="lang_de">DE</string>
     <string name="lang_en">EN</string>
     <string name="gpu_label">GPU (Vulkan)</string>
+    <string name="change_model">Modell wechseln</string>
+    <string name="select_model_title">Whisper Modell wählen</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="performance_label">Geschwindigkeit: %1$.2fx Realtime</string>
+    <string name="model_downloaded_tag">(Heruntergeladen)</string>
+    <string name="model_loading">Modell wird geladen (%1$s)…</string>
+    <string name="transcription_finished">Fertig. (%1$.2fx Realtime)</string>
+    <string name="model_required">Modell nicht gefunden. Bitte Modell wählen und laden.</string>
+    <string name="loading_models">Verfügbare Modelle werden geladen…</string>
+    <string name="refresh_models">Liste aktualisieren</string>
+    <string name="failed_to_fetch_models">Fehler beim Laden der Liste. Fallback wird genutzt.</string>
 </resources>

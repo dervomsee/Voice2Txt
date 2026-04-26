@@ -6,12 +6,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.dervomsee.voice2txt.R
 import de.dervomsee.voice2txt.audio.AudioRecorder
 import de.dervomsee.voice2txt.whisper.ModelDownloader
 import de.dervomsee.voice2txt.whisper.WhisperContext
+import de.dervomsee.voice2txt.whisper.WhisperModel
+import de.dervomsee.voice2txt.whisper.availableModels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.system.measureTimeMillis
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     var transcription by mutableStateOf("")
@@ -35,18 +39,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var useGpu by mutableStateOf(false)
         private set
 
+    var selectedModel by mutableStateOf(availableModels[1]) // Default to Tiny Q8_0
+        private set
+
+    var availableModelsList by mutableStateOf(availableModels)
+        private set
+
+    var isLoadingModels by mutableStateOf(false)
+        private set
+
+    var lastPerformanceRtf by mutableStateOf(0f)
+        private set
+
     private var whisperContext: WhisperContext? = null
     private val audioRecorder = AudioRecorder()
     private val recordedData = mutableListOf<Float>()
-    private val availableThreads = Runtime.getRuntime().availableProcessors()
+    
+    // Using 6 threads for better balance on Pixel 8 (Tensor G3)
+    private val whisperThreads = 6
 
     init {
+        refreshModels()
+        checkModel()
+    }
+
+    fun refreshModels() {
+        viewModelScope.launch {
+            isLoadingModels = true
+            availableModelsList = ModelDownloader.fetchAvailableModels()
+            isLoadingModels = false
+            
+            // If currently selected model is not in the new list, keep it but warn? 
+            // Or just ensure it's still consistent.
+        }
+    }
+
+    fun selectModel(model: WhisperModel) {
+        selectedModel = model
         checkModel()
     }
 
     private fun checkModel() {
-        if (!ModelDownloader.isModelDownloaded(getApplication())) {
-            statusMessage = "Model not found. Download required."
+        if (!ModelDownloader.isModelDownloaded(getApplication(), selectedModel.fileName)) {
+            statusMessage = getApplication<Application>().getString(R.string.model_required)
+            whisperContext?.release()
+            whisperContext = null
         } else {
             loadModel()
         }
@@ -55,13 +92,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun downloadModel() {
         viewModelScope.launch {
             isDownloading = true
-            statusMessage = "Downloading model..."
-            val success = ModelDownloader.downloadModel(getApplication()) { progress ->
+            statusMessage = getApplication<Application>().getString(R.string.status_label, "Downloading...")
+            val success = ModelDownloader.downloadModel(getApplication(), selectedModel) { progress ->
                 downloadProgress = progress
             }
             isDownloading = false
             if (success) {
-                statusMessage = "Download complete."
                 loadModel()
             } else {
                 statusMessage = "Download failed."
@@ -72,11 +108,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                statusMessage = "Loading model (GPU: $useGpu)..."
+                statusMessage = getApplication<Application>().getString(R.string.model_loading, selectedModel.name)
                 whisperContext?.release()
-                val modelFile = ModelDownloader.getModelFile(getApplication())
+                val modelFile = ModelDownloader.getModelFile(getApplication(), selectedModel.fileName)
                 whisperContext = WhisperContext.createContextFromFile(modelFile.absolutePath, useGpu)
-                statusMessage = "Model loaded. Ready to record."
+                statusMessage = getApplication<Application>().getString(R.string.status_label, "Ready")
             } catch (e: Exception) {
                 statusMessage = "Failed to load model: ${e.localizedMessage}"
             }
@@ -97,7 +133,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleGpu(enabled: Boolean) {
         useGpu = enabled
-        // Re-load model to apply GPU setting
         loadModel()
     }
 
@@ -124,9 +159,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val data = recordedData.toFloatArray()
             if (data.isNotEmpty()) {
-                val result = whisperContext?.transcribeData(data, selectedLanguage, availableThreads) ?: ""
+                var result = ""
+                val durationMs = (data.size.toFloat() / 16000f) * 1000f
+                
+                val inferenceTimeMs = measureTimeMillis {
+                    result = whisperContext?.transcribeData(data, selectedLanguage, whisperThreads) ?: ""
+                }
+                
+                if (inferenceTimeMs > 0) {
+                    lastPerformanceRtf = durationMs / inferenceTimeMs.toFloat()
+                }
+
                 transcription = result
-                statusMessage = "Transcription finished."
+                statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
             } else {
                 statusMessage = "No audio recorded."
             }

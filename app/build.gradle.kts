@@ -44,7 +44,9 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug") // Temporary for easier testing
-            
+            installation {
+                enableBaselineProfile = false
+            }
             externalNativeBuild {
                 cmake {
                     cppFlags("-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
@@ -66,6 +68,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)

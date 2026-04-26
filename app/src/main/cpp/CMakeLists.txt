@@ -6,20 +6,23 @@ set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
 
+# Enable optimizations
+set(GGML_VULKAN OFF CACHE BOOL "vulkan" FORCE)
+set(GGML_OPENMP OFF CACHE BOOL "openmp" FORCE)
+set(GGML_ARM_NEON ON CACHE BOOL "neon" FORCE)
+
 # Fetch whisper.cpp
 FetchContent_Declare(
     whisper_cpp
     GIT_REPOSITORY https://github.com/ggerganov/whisper.cpp.git
-    GIT_TAG        v1.7.4
+    GIT_TAG        v1.8.4
 )
 
 FetchContent_MakeAvailable(whisper_cpp)
 
-# Enable Vulkan
-set(GGML_VULKAN ON CACHE BOOL "vulkan" FORCE)
-
-# Find Vulkan package
-find_package(Vulkan REQUIRED)
+# Ensure release flags are aggressive
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -fexceptions -frtti -ffunction-sections -fdata-sections")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -fexceptions -ffunction-sections -fdata-sections")
 
 # Define our JNI library
 add_library(
@@ -28,13 +31,12 @@ add_library(
     jni.c
 )
 
-# Link log library, whisper.cpp, and Vulkan
+# Link log library and whisper.cpp
 target_link_libraries(
     voice2txt
     whisper
     log
     android
-    Vulkan::Vulkan
 )
 
 # Include directories for whisper.cpp
