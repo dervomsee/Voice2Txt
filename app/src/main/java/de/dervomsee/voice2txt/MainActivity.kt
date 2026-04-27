@@ -9,21 +9,30 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.dervomsee.voice2txt.ui.BenchmarkResult
 import de.dervomsee.voice2txt.ui.MainViewModel
 import de.dervomsee.voice2txt.ui.Screen
 import de.dervomsee.voice2txt.ui.theme.Voice2TxtTheme
@@ -44,7 +53,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppContent(viewModel: MainViewModel = viewModel()) {
     // Handle system back gesture/button
-    BackHandler(enabled = viewModel.currentScreen is Screen.Settings) {
+    BackHandler(enabled = viewModel.currentScreen !is Screen.Main) {
         viewModel.navigateTo(Screen.Main)
     }
 
@@ -52,6 +61,7 @@ fun AppContent(viewModel: MainViewModel = viewModel()) {
         when (screen) {
             is Screen.Main -> MainScreen(viewModel)
             is Screen.Settings -> SettingsScreen(viewModel)
+            is Screen.Benchmark -> BenchmarkScreen(viewModel)
         }
     }
 }
@@ -82,6 +92,13 @@ fun MainScreen(viewModel: MainViewModel) {
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_benchmark)) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.navigateTo(Screen.Benchmark)
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_settings)) },
                             onClick = {
@@ -143,6 +160,135 @@ fun MainScreen(viewModel: MainViewModel) {
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BenchmarkScreen(viewModel: MainViewModel) {
+    var selectedResult by remember { mutableStateOf<BenchmarkResult?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.toggleBenchmarkRecording()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.benchmark_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.navigateTo(Screen.Main) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .padding(16.dp)
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (viewModel.isBenchmarking) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = viewModel.benchmarkStatus,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                        modifier = Modifier.weight(1f),
+                        colors = if (viewModel.isRecording) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors()
+                    ) {
+                        Text(if (viewModel.isRecording) stringResource(R.string.benchmark_stop_recording) else stringResource(R.string.benchmark_start_recording))
+                    }
+
+                    Button(
+                        onClick = { viewModel.runBenchmark() },
+                        enabled = viewModel.benchmarkSampleData != null && !viewModel.isRecording,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.benchmark_start))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Table Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.benchmark_col_model), Modifier.weight(2f), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.benchmark_col_device), Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.benchmark_col_time), Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.benchmark_col_rtf), Modifier.weight(1f), fontWeight = FontWeight.Bold)
+            }
+
+            HorizontalDivider()
+
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(viewModel.benchmarkResults) { result ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedResult = result }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(result.modelName, Modifier.weight(2f), style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (result.isGpu) stringResource(R.string.benchmark_gpu) else stringResource(R.string.benchmark_cpu),
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text("${result.inferenceTimeMs}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text(String.format("%.2f", result.rtf), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    }
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+
+    selectedResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { selectedResult = null },
+            title = {
+                Text(
+                    stringResource(
+                        R.string.benchmark_transcription_title,
+                        result.modelName,
+                        if (result.isGpu) stringResource(R.string.benchmark_gpu) else stringResource(R.string.benchmark_cpu)
+                    )
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(result.transcription)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedResult = null }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 

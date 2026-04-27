@@ -22,8 +22,8 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags("-std=c++17")
-                arguments("-DWHISPER_BUILD_TESTS=OFF", "-DWHISPER_BUILD_EXAMPLES=OFF")
+                cppFlags("-std=c++17", "-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
+                arguments("-DWHISPER_BUILD_TESTS=OFF", "-DWHISPER_BUILD_EXAMPLES=OFF", "-DCMAKE_BUILD_TYPE=Release")
             }
         }
     }
@@ -47,12 +47,12 @@ android {
             installation {
                 enableBaselineProfile = false
             }
-            externalNativeBuild {
-                cmake {
-                    cppFlags("-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
-                    arguments("-DCMAKE_BUILD_TYPE=Release")
-                }
-            }
+//            externalNativeBuild {
+//                cmake {
+//                    cppFlags("-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
+//                    arguments("-DCMAKE_BUILD_TYPE=Release")
+//                }
+//            }
         }
     }
     compileOptions {

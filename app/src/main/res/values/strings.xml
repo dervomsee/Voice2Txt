@@ -25,4 +25,19 @@
     <string name="settings_model_label">Whisper Model</string>
     <string name="settings_language_label">Language</string>
     <string name="back">Back</string>
+    <string name="menu_benchmark">Benchmark</string>
+    <string name="benchmark_title">Benchmark</string>
+    <string name="benchmark_start">Run Benchmark</string>
+    <string name="benchmark_recording">Recording Sample...</string>
+    <string name="benchmark_processing">Processing %1$s (%2$s)...</string>
+    <string name="benchmark_col_model">Model</string>
+    <string name="benchmark_col_device">Device</string>
+    <string name="benchmark_col_time">Time (ms)</string>
+    <string name="benchmark_col_rtf">RTF</string>
+    <string name="benchmark_no_models">No models downloaded. Please download models in Settings.</string>
+    <string name="benchmark_transcription_title">Transcription: %1$s (%2$s)</string>
+    <string name="benchmark_cpu">CPU</string>
+    <string name="benchmark_gpu">GPU</string>
+    <string name="benchmark_start_recording">Start Recording Sample</string>
+    <string name="benchmark_stop_recording">Stop Recording Sample</string>
 </resources>
