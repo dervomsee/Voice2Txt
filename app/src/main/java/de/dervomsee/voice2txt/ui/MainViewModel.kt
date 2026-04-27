@@ -24,6 +24,7 @@ sealed class Screen {
     data object Main : Screen()
     data object Settings : Screen()
     data object Benchmark : Screen()
+    data object About : Screen()
 }
 
 data class BenchmarkResult(
@@ -82,6 +83,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var isBenchmarking by mutableStateOf(false)
         private set
 
+    var whisperSystemInfo by mutableStateOf("")
+        private set
+
+    var appVersion by mutableStateOf("1.0")
+        private set
+
     var benchmarkStatus by mutableStateOf("")
         private set
 
@@ -97,6 +104,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            whisperSystemInfo = WhisperContext.getSystemInfo()
             selectedLanguage = settingsManager.selectedLanguage.first()
             useGpu = settingsManager.useGpu.first()
             val modelFile = settingsManager.selectedModelFile.first()

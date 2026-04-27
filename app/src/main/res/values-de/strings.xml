@@ -22,6 +22,7 @@
     <string name="refresh_models">Liste aktualisieren</string>
     <string name="failed_to_fetch_models">Fehler beim Laden der Liste. Fallback wird genutzt.</string>
     <string name="menu_settings">Einstellungen</string>
+    <string name="menu_about">Über</string>
     <string name="settings_title">Einstellungen</string>
     <string name="settings_model_label">Whisper-Modell</string>
     <string name="settings_language_label">Sprache</string>
@@ -45,4 +46,9 @@
     <string name="delete_model">Modell löschen</string>
     <string name="delete_model_confirmation">Sind Sie sicher, dass Sie das Modell \'%1$s\' löschen möchten? Sie müssen es erneut herunterladen, um es zu verwenden.</string>
     <string name="delete_model_confirm">Löschen</string>
+    <string name="about_title">Über</string>
+    <string name="about_version">Version: %1$s</string>
+    <string name="about_copyright">© 2026 dervomsee</string>
+    <string name="about_license">Diese App ist Open Source unter der MIT-Lizenz. Whisper wird unter der MIT-Lizenz von OpenAI/ggerganov veröffentlicht.</string>
+    <string name="about_whisper_info">Whisper-Systeminfo</string>
 </resources>

@@ -63,6 +63,7 @@ fun AppContent(viewModel: MainViewModel = viewModel()) {
             is Screen.Main -> MainScreen(viewModel)
             is Screen.Settings -> SettingsScreen(viewModel)
             is Screen.Benchmark -> BenchmarkScreen(viewModel)
+            is Screen.About -> AboutScreen(viewModel)
         }
     }
 }
@@ -105,6 +106,13 @@ fun MainScreen(viewModel: MainViewModel) {
                             onClick = {
                                 showMenu = false
                                 viewModel.navigateTo(Screen.Settings)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_about)) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.navigateTo(Screen.About)
                             }
                         )
                     }
@@ -293,6 +301,80 @@ fun BenchmarkScreen(viewModel: MainViewModel) {
                 }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AboutScreen(viewModel: MainViewModel) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.about_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.navigateTo(Screen.Main) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.about_version, viewModel.appVersion),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Text(
+                text = stringResource(R.string.about_copyright),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = stringResource(R.string.about_license),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
+
+            Text(
+                text = stringResource(R.string.about_whisper_info),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Text(
+                    text = viewModel.whisperSystemInfo,
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+            }
+        }
     }
 }
 
