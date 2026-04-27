@@ -14,7 +14,7 @@ set(GGML_ARM_NEON ON CACHE BOOL "neon" FORCE)
 # Fetch whisper.cpp
 FetchContent_Declare(
     whisper_cpp
-    GIT_REPOSITORY https://github.com/ggerganov/whisper.cpp.git
+    GIT_REPOSITORY https://github.com/ggml-org/whisper.cpp
     GIT_TAG        v1.8.4
 )
 

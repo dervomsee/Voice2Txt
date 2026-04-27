@@ -3,14 +3,18 @@ package de.dervomsee.voice2txt
 import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,9 +25,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.dervomsee.voice2txt.ui.MainViewModel
+import de.dervomsee.voice2txt.ui.Screen
 import de.dervomsee.voice2txt.ui.theme.Voice2TxtTheme
 import de.dervomsee.voice2txt.whisper.ModelDownloader
-import de.dervomsee.voice2txt.whisper.availableModels
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,16 +35,31 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Voice2TxtTheme {
-                MainScreen()
+                AppContent()
             }
         }
     }
 }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
-    val context = LocalContext.current
-    var showModelDialog by remember { mutableStateOf(false) }
+fun AppContent(viewModel: MainViewModel = viewModel()) {
+    // Handle system back gesture/button
+    BackHandler(enabled = viewModel.currentScreen is Screen.Settings) {
+        viewModel.navigateTo(Screen.Main)
+    }
+
+    Crossfade(targetState = viewModel.currentScreen, label = "ScreenTransition") { screen ->
+        when (screen) {
+            is Screen.Main -> MainScreen(viewModel)
+            is Screen.Settings -> SettingsScreen(viewModel)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(viewModel: MainViewModel) {
+    var showMenu by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -50,7 +69,31 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = { showMenu = !showMenu }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_settings)) },
+                            onClick = {
+                                showMenu = false
+                                viewModel.navigateTo(Screen.Settings)
+                            }
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
@@ -63,54 +106,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-
-            if (viewModel.isDownloading) {
-                LinearProgressIndicator(
-                    progress = { viewModel.downloadProgress },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                )
-                Text(text = stringResource(R.string.downloading_progress, (viewModel.downloadProgress * 100).toInt()))
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Model Selection Button
-            Button(onClick = { showModelDialog = true }) {
-                Text(stringResource(R.string.change_model) + ": ${viewModel.selectedModel.name}")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.lang_de))
-                Switch(
-                    checked = viewModel.selectedLanguage == "en",
-                    onCheckedChange = { isEn ->
-                        viewModel.setLanguage(if (isEn) "en" else "de")
-                    },
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-                Text(stringResource(R.string.lang_en))
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.gpu_label))
-                Switch(
-                    checked = viewModel.useGpu,
-                    onCheckedChange = { viewModel.toggleGpu(it) },
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
 
             if (viewModel.lastPerformanceRtf > 0f) {
                 Text(
@@ -136,29 +131,132 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            Button(
+                onClick = {
+                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
-                val isDownloaded = ModelDownloader.isModelDownloaded(context, viewModel.selectedModel.fileName)
-                
-                if (!isDownloaded) {
-                    Button(onClick = { viewModel.downloadModel() }, enabled = !viewModel.isDownloading) {
-                        Text(stringResource(R.string.download_model))
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        },
-                        enabled = !viewModel.isDownloading
-                    ) {
-                        Text(
-                            if (viewModel.isRecording) stringResource(R.string.stop_recording)
-                            else stringResource(R.string.start_recording)
-                        )
+                Text(
+                    if (viewModel.isRecording) stringResource(R.string.stop_recording)
+                    else stringResource(R.string.start_recording)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(viewModel: MainViewModel) {
+    val context = LocalContext.current
+    var showModelDialog by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.navigateTo(Screen.Main) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Model Selection
+            Text(
+                text = stringResource(R.string.settings_model_label),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.align(Alignment.Start)
+            )
+            
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                onClick = { showModelDialog = true }
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(text = viewModel.selectedModel.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = if (ModelDownloader.isModelDownloaded(context, viewModel.selectedModel.fileName)) 
+                            stringResource(R.string.model_downloaded_tag) 
+                        else stringResource(R.string.model_required),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            if (!ModelDownloader.isModelDownloaded(context, viewModel.selectedModel.fileName)) {
+                Button(
+                    onClick = { viewModel.downloadModel() },
+                    enabled = !viewModel.isDownloading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.download_model))
+                }
+            }
+
+            if (viewModel.isDownloading) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { viewModel.downloadProgress },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = stringResource(R.string.downloading_progress, (viewModel.downloadProgress * 100).toInt()),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            // Language Selection
+            Text(
+                text = stringResource(R.string.settings_language_label),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.lang_de))
+                Switch(
+                    checked = viewModel.selectedLanguage == "en",
+                    onCheckedChange = { isEn ->
+                        viewModel.setLanguage(if (isEn) "en" else "de")
+                    },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                Text(stringResource(R.string.lang_en))
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            // GPU Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.gpu_label),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Switch(
+                    checked = viewModel.useGpu,
+                    onCheckedChange = { viewModel.toggleGpu(it) }
+                )
             }
         }
     }

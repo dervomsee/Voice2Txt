@@ -8,16 +8,28 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.dervomsee.voice2txt.R
 import de.dervomsee.voice2txt.audio.AudioRecorder
+import de.dervomsee.voice2txt.settings.SettingsManager
 import de.dervomsee.voice2txt.whisper.ModelDownloader
 import de.dervomsee.voice2txt.whisper.WhisperContext
 import de.dervomsee.voice2txt.whisper.WhisperModel
 import de.dervomsee.voice2txt.whisper.availableModels
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.system.measureTimeMillis
 
+sealed class Screen {
+    data object Main : Screen()
+    data object Settings : Screen()
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val settingsManager = SettingsManager(application)
+
+    var currentScreen by mutableStateOf<Screen>(Screen.Main)
+        private set
+
     var transcription by mutableStateOf("")
         private set
 
@@ -59,8 +71,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val whisperThreads = 6
 
     init {
-        refreshModels()
-        checkModel()
+        viewModelScope.launch {
+            selectedLanguage = settingsManager.selectedLanguage.first()
+            useGpu = settingsManager.useGpu.first()
+            val modelFile = settingsManager.selectedModelFile.first()
+            selectedModel = availableModels.find { it.fileName == modelFile } ?: availableModels[1]
+            
+            refreshModels()
+            checkModel()
+        }
+    }
+
+    fun navigateTo(screen: Screen) {
+        currentScreen = screen
     }
 
     fun refreshModels() {
@@ -68,14 +91,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isLoadingModels = true
             availableModelsList = ModelDownloader.fetchAvailableModels()
             isLoadingModels = false
-            
-            // If currently selected model is not in the new list, keep it but warn? 
-            // Or just ensure it's still consistent.
         }
     }
 
     fun selectModel(model: WhisperModel) {
         selectedModel = model
+        viewModelScope.launch {
+            settingsManager.setSelectedModelFile(model.fileName)
+        }
         checkModel()
     }
 
@@ -90,6 +113,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun downloadModel() {
+        if (isDownloading) return
         viewModelScope.launch {
             isDownloading = true
             statusMessage = getApplication<Application>().getString(R.string.status_label, "Downloading...")
@@ -129,10 +153,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLanguage(lang: String) {
         selectedLanguage = lang
+        viewModelScope.launch {
+            settingsManager.setSelectedLanguage(lang)
+        }
     }
 
     fun toggleGpu(enabled: Boolean) {
         useGpu = enabled
+        viewModelScope.launch {
+            settingsManager.setUseGpu(enabled)
+        }
         loadModel()
     }
 

@@ -20,4 +20,9 @@
     <string name="loading_models">Verfügbare Modelle werden geladen…</string>
     <string name="refresh_models">Liste aktualisieren</string>
     <string name="failed_to_fetch_models">Fehler beim Laden der Liste. Fallback wird genutzt.</string>
+    <string name="menu_settings">Einstellungen</string>
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_model_label">Whisper-Modell</string>
+    <string name="settings_language_label">Sprache</string>
+    <string name="back">Zurück</string>
 </resources>
