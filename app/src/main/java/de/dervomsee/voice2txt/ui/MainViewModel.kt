@@ -46,6 +46,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var isRecording by mutableStateOf(false)
         private set
 
+    var isTranscribing by mutableStateOf(false)
+        private set
+
     var isDownloading by mutableStateOf(false)
         private set
 
@@ -104,6 +107,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var isAborted = false
+
     fun navigateTo(screen: Screen) {
         currentScreen = screen
     }
@@ -151,6 +156,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteModel(model: WhisperModel) {
+        if (ModelDownloader.deleteModel(getApplication(), model.fileName)) {
+            if (selectedModel.fileName == model.fileName) {
+                whisperContext?.release()
+                whisperContext = null
+                statusMessage = getApplication<Application>().getString(R.string.model_required)
+            }
+            // Trigger UI update
+            val currentModels = availableModelsList
+            availableModelsList = emptyList()
+            availableModelsList = currentModels
+        }
+    }
+
     private fun loadModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -168,9 +187,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleRecording() {
         if (isRecording) {
             stopRecording()
+        } else if (isTranscribing) {
+            stopTranscription()
         } else {
             startRecording()
         }
+    }
+
+    fun stopTranscription() {
+        isAborted = true
+        whisperContext?.stopTranscription()
+        statusMessage = getApplication<Application>().getString(R.string.transcription_aborted)
     }
 
     fun toggleBenchmarkRecording() {
@@ -310,6 +337,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val data = recordedData.toFloatArray()
             if (data.isNotEmpty()) {
+                isTranscribing = true
+                isAborted = false
                 var result = ""
                 val durationMs = (data.size.toFloat() / 16000f) * 1000f
                 
@@ -322,7 +351,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 transcription = result
-                statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
+                isTranscribing = false
+                
+                if (!isAborted) {
+                    statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
+                } else {
+                    lastPerformanceRtf = 0f
+                }
             } else {
                 statusMessage = "No audio recorded."
             }

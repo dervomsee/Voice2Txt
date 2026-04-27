@@ -16,6 +16,12 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__)
 
+static bool g_abort_transcription = false;
+
+bool whisper_abort_callback(void * user_data) {
+    return g_abort_transcription;
+}
+
 JNIEXPORT jlong JNICALL
 Java_de_dervomsee_voice2txt_whisper_WhisperLib_initContext(
         JNIEnv *env, jobject thiz, jstring model_path_str, jboolean use_gpu) {
@@ -72,11 +78,21 @@ Java_de_dervomsee_voice2txt_whisper_WhisperLib_fullTranscribe(
     params.print_progress = false;
     params.language = lang_chars;
 
+    g_abort_transcription = false;
+    params.abort_callback = whisper_abort_callback;
+    params.abort_callback_user_data = NULL;
+
     int result = whisper_full(context, params, audio_data_arr, audio_data_length);
 
     (*env)->ReleaseStringUTFChars(env, lang_str, lang_chars);
     (*env)->ReleaseFloatArrayElements(env, audio_data, audio_data_arr, JNI_ABORT);
     return result;
+}
+
+JNIEXPORT void JNICALL
+Java_de_dervomsee_voice2txt_whisper_WhisperLib_abortTranscription(
+        JNIEnv *env, jobject thiz) {
+    g_abort_transcription = true;
 }
 
 JNIEXPORT jint JNICALL

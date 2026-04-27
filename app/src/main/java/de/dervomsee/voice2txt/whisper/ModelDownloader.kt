@@ -70,6 +70,15 @@ object ModelDownloader {
         return getModelFile(context, fileName).exists()
     }
 
+    fun deleteModel(context: Context, fileName: String): Boolean {
+        val file = getModelFile(context, fileName)
+        return if (file.exists()) {
+            file.delete()
+        } else {
+            false
+        }
+    }
+
     suspend fun downloadModel(context: Context, model: WhisperModel, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         val outputFile = getModelFile(context, model.fileName)
         if (outputFile.exists()) return@withContext true

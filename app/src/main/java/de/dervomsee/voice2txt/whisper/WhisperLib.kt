@@ -11,4 +11,5 @@ object WhisperLib {
     external fun getTextSegmentCount(contextPtr: Long): Int
     external fun getTextSegment(contextPtr: Long, index: Int): String
     external fun getSystemInfo(): String
+    external fun abortTranscription()
 }

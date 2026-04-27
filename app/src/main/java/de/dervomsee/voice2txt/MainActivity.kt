@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -155,8 +156,11 @@ fun MainScreen(viewModel: MainViewModel) {
                 modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
                 Text(
-                    if (viewModel.isRecording) stringResource(R.string.stop_recording)
-                    else stringResource(R.string.start_recording)
+                    when {
+                        viewModel.isRecording -> stringResource(R.string.stop_recording)
+                        viewModel.isTranscribing -> stringResource(R.string.stop_transcription)
+                        else -> stringResource(R.string.start_recording)
+                    }
                 )
             }
         }
@@ -297,6 +301,7 @@ fun BenchmarkScreen(viewModel: MainViewModel) {
 fun SettingsScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     var showModelDialog by remember { mutableStateOf(false) }
+    var modelToDelete by remember { mutableStateOf<de.dervomsee.voice2txt.whisper.WhisperModel?>(null) }
 
     Scaffold(
         topBar = {
@@ -471,27 +476,42 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                             viewModel.availableModelsList.forEach { model ->
                                 val downloaded = ModelDownloader.isModelDownloaded(context, model.fileName)
-                                TextButton(
-                                    onClick = {
-                                        viewModel.selectModel(model)
-                                        showModelDialog = false
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.selectModel(model)
+                                            showModelDialog = false
+                                        },
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Text(
-                                            text = model.name,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (downloaded) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Text(
-                                                text = stringResource(R.string.model_downloaded_tag),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.secondary
+                                                text = model.name,
+                                                modifier = Modifier.weight(1f),
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                            )
+                                            if (downloaded) {
+                                                Text(
+                                                    text = stringResource(R.string.model_downloaded_tag),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.secondary
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (downloaded) {
+                                        IconButton(onClick = { modelToDelete = model }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = stringResource(R.string.delete_model),
+                                                tint = MaterialTheme.colorScheme.error
                                             )
                                         }
                                     }
@@ -503,6 +523,30 @@ fun SettingsScreen(viewModel: MainViewModel) {
             },
             confirmButton = {
                 TextButton(onClick = { showModelDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    modelToDelete?.let { model ->
+        AlertDialog(
+            onDismissRequest = { modelToDelete = null },
+            title = { Text(stringResource(R.string.delete_model)) },
+            text = { Text(stringResource(R.string.delete_model_confirmation, model.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteModel(model)
+                        modelToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(stringResource(R.string.delete_model_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { modelToDelete = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }

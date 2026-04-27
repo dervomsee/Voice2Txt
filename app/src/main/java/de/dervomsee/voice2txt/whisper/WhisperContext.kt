@@ -37,6 +37,10 @@ class WhisperContext private constructor(private var ptr: Long) {
         sb.toString()
     }
 
+    fun stopTranscription() {
+        WhisperLib.abortTranscription()
+    }
+
     fun release() {
         if (ptr != 0L) {
             WhisperLib.freeContext(ptr)

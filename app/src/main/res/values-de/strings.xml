@@ -3,6 +3,7 @@
     <string name="transcription_hint">Transkription erscheint hier…</string>
     <string name="start_recording">Aufnahme starten</string>
     <string name="stop_recording">Aufnahme stoppen</string>
+    <string name="stop_transcription">Transkription stoppen</string>
     <string name="download_model">Modell herunterladen</string>
     <string name="status_label">Status: %1$s</string>
     <string name="downloading_progress">Lädt herunter: %1$d%%</string>
@@ -25,6 +26,7 @@
     <string name="settings_model_label">Whisper-Modell</string>
     <string name="settings_language_label">Sprache</string>
     <string name="back">Zurück</string>
+    <string name="transcription_aborted">Transkription abgebrochen.</string>
     <string name="menu_benchmark">Benchmark</string>
     <string name="benchmark_title">Benchmark</string>
     <string name="benchmark_start">Benchmark starten</string>
@@ -40,4 +42,7 @@
     <string name="benchmark_gpu">GPU</string>
     <string name="benchmark_start_recording">Beispielaufnahme starten</string>
     <string name="benchmark_stop_recording">Beispielaufnahme stoppen</string>
+    <string name="delete_model">Modell löschen</string>
+    <string name="delete_model_confirmation">Sind Sie sicher, dass Sie das Modell \'%1$s\' löschen möchten? Sie müssen es erneut herunterladen, um es zu verwenden.</string>
+    <string name="delete_model_confirm">Löschen</string>
 </resources>

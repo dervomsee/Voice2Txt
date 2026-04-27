@@ -3,6 +3,7 @@
     <string name="transcription_hint">Transcription will appear here…</string>
     <string name="start_recording">Start Recording</string>
     <string name="stop_recording">Stop Recording</string>
+    <string name="stop_transcription">Stop Transcription</string>
     <string name="download_model">Download Model</string>
     <string name="status_label">Status: %1$s</string>
     <string name="downloading_progress">Downloading: %1$d%%</string>
@@ -25,6 +26,7 @@
     <string name="settings_model_label">Whisper Model</string>
     <string name="settings_language_label">Language</string>
     <string name="back">Back</string>
+    <string name="transcription_aborted">Transcription aborted.</string>
     <string name="menu_benchmark">Benchmark</string>
     <string name="benchmark_title">Benchmark</string>
     <string name="benchmark_start">Run Benchmark</string>
@@ -40,4 +42,7 @@
     <string name="benchmark_gpu">GPU</string>
     <string name="benchmark_start_recording">Start Recording Sample</string>
     <string name="benchmark_stop_recording">Stop Recording Sample</string>
+    <string name="delete_model">Delete Model</string>
+    <string name="delete_model_confirmation">Are you sure you want to delete the model \'%1$s\'? You will need to download it again to use it.</string>
+    <string name="delete_model_confirm">Delete</string>
 </resources>
