@@ -31,3 +31,37 @@ val availableModels = listOf(
     WhisperModel("Large v3 Turbo", "ggml-large-v3-turbo.bin"),
     WhisperModel("Large v3 Turbo Q8_0", "ggml-large-v3-turbo-q8_0.bin")
 )
+
+data class WhisperLanguage(val code: String, val name: String)
+
+val whisperLanguages = listOf(
+    WhisperLanguage("de", "Deutsch"),
+    WhisperLanguage("en", "English"),
+    WhisperLanguage("fr", "Français"),
+    WhisperLanguage("it", "Italiano"),
+    WhisperLanguage("es", "Español"),
+    WhisperLanguage("pt", "Português"),
+    WhisperLanguage("nl", "Nederlands"),
+    WhisperLanguage("pl", "Polski"),
+    WhisperLanguage("ru", "Русский"),
+    WhisperLanguage("tr", "Türkçe"),
+    WhisperLanguage("ar", "العربية"),
+    WhisperLanguage("zh", "中文"),
+    WhisperLanguage("ja", "日本語"),
+    WhisperLanguage("ko", "한국어"),
+    WhisperLanguage("hi", "हिन्दी"),
+    WhisperLanguage("uk", "Українська"),
+    WhisperLanguage("sv", "Svenska"),
+    WhisperLanguage("da", "Dansk"),
+    WhisperLanguage("fi", "Suomi"),
+    WhisperLanguage("no", "Norsk"),
+    WhisperLanguage("cs", "Čeština"),
+    WhisperLanguage("el", "Ελληνικά"),
+    WhisperLanguage("he", "עברית"),
+    WhisperLanguage("id", "Bahasa Indonesia"),
+    WhisperLanguage("vi", "Tiếng Việt"),
+    WhisperLanguage("th", "ไทย"),
+    WhisperLanguage("fa", "فارسی"),
+    WhisperLanguage("hu", "Magyar"),
+    WhisperLanguage("ro", "Română")
+)

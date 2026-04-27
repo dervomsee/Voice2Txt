@@ -225,20 +225,49 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 modifier = Modifier.align(Alignment.Start)
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            var showLanguageDialog by remember { mutableStateOf(false) }
+            val currentLanguage = de.dervomsee.voice2txt.whisper.whisperLanguages.find { it.code == viewModel.selectedLanguage }
+            
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                onClick = { showLanguageDialog = true }
             ) {
-                Text(stringResource(R.string.lang_de))
-                Switch(
-                    checked = viewModel.selectedLanguage == "en",
-                    onCheckedChange = { isEn ->
-                        viewModel.setLanguage(if (isEn) "en" else "de")
-                    },
-                    modifier = Modifier.padding(horizontal = 8.dp)
+                Text(
+                    text = currentLanguage?.name ?: viewModel.selectedLanguage,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyLarge
                 )
-                Text(stringResource(R.string.lang_en))
+            }
+
+            if (showLanguageDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLanguageDialog = false },
+                    title = { Text(stringResource(R.string.settings_language_label)) },
+                    text = {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            de.dervomsee.voice2txt.whisper.whisperLanguages.forEach { language ->
+                                TextButton(
+                                    onClick = {
+                                        viewModel.setLanguage(language.code)
+                                        showLanguageDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = language.name,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showLanguageDialog = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                )
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
