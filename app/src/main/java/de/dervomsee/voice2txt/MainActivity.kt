@@ -177,14 +177,6 @@ fun MainScreen(viewModel: MainViewModel) {
                 )
             }
 
-            if (viewModel.lastPerformanceRtf > 0f) {
-                Text(
-                    text = stringResource(R.string.performance_label, viewModel.lastPerformanceRtf),
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(
