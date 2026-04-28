@@ -276,6 +276,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         benchmarkSampleData = recordedData.toFloatArray()
     }
 
+    fun loadBenchmarkFile(uri: Uri) {
+        viewModelScope.launch {
+            benchmarkStatus = getApplication<Application>().getString(R.string.decoding_audio)
+            isBenchmarking = true
+            val data = audioDecoder.decodeToFloatArray(getApplication(), uri)
+            if (data != null && data.isNotEmpty()) {
+                benchmarkSampleData = data
+                benchmarkStatus = "File loaded. Ready for benchmark."
+            } else {
+                benchmarkStatus = getApplication<Application>().getString(R.string.failed_to_decode)
+            }
+            isBenchmarking = false
+        }
+    }
+
     fun runBenchmark() {
         if (benchmarkSampleData == null) return
         

@@ -240,6 +240,12 @@ fun BenchmarkScreen(viewModel: MainViewModel) {
         }
     }
 
+    val benchmarkFilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.loadBenchmarkFile(it) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -267,6 +273,14 @@ fun BenchmarkScreen(viewModel: MainViewModel) {
                     modifier = Modifier.padding(top = 8.dp)
                 )
             } else {
+                Button(
+                    onClick = { benchmarkFilePicker.launch("audio/*") },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    enabled = !viewModel.isRecording
+                ) {
+                    Text(stringResource(R.string.benchmark_open_file))
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)

@@ -43,6 +43,7 @@
     <string name="benchmark_gpu">GPU</string>
     <string name="benchmark_start_recording">Start Recording Sample</string>
     <string name="benchmark_stop_recording">Stop Recording Sample</string>
+    <string name="benchmark_open_file">Open Audio File</string>
     <string name="delete_model">Delete Model</string>
     <string name="delete_model_confirmation">Are you sure you want to delete the model \'%1$s\'? You will need to download it again to use it.</string>
     <string name="delete_model_confirm">Delete</string>
