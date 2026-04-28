@@ -51,4 +51,7 @@
     <string name="about_copyright">© 2026 dervomsee</string>
     <string name="about_license">This app is open source under the MIT License. Whisper is released under the MIT License by OpenAI/ggerganov.</string>
     <string name="about_whisper_info">Whisper System Info</string>
+    <string name="open_audio_file">Open Audio</string>
+    <string name="decoding_audio">Decoding audio...</string>
+    <string name="failed_to_decode">Failed to decode audio file.</string>
 </resources>

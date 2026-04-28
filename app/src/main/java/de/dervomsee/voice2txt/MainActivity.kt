@@ -81,6 +81,12 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.transcribeFile(it) }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -157,19 +163,34 @@ fun MainScreen(viewModel: MainViewModel) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = {
-                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    when {
-                        viewModel.isRecording -> stringResource(R.string.stop_recording)
-                        viewModel.isTranscribing -> stringResource(R.string.stop_transcription)
-                        else -> stringResource(R.string.start_recording)
-                    }
-                )
+                Button(
+                    onClick = {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    modifier = Modifier.weight(1f).height(56.dp)
+                ) {
+                    Text(
+                        when {
+                            viewModel.isRecording -> stringResource(R.string.stop_recording)
+                            viewModel.isTranscribing -> stringResource(R.string.stop_transcription)
+                            else -> stringResource(R.string.start_recording)
+                        }
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        filePickerLauncher.launch("audio/*")
+                    },
+                    enabled = !viewModel.isRecording && !viewModel.isTranscribing,
+                    modifier = Modifier.weight(1f).height(56.dp)
+                ) {
+                    Text(stringResource(R.string.open_audio_file))
+                }
             }
         }
     }

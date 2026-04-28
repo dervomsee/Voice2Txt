@@ -1,6 +1,7 @@
 package de.dervomsee.voice2txt.ui
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.dervomsee.voice2txt.R
+import de.dervomsee.voice2txt.audio.AudioDecoder
 import de.dervomsee.voice2txt.audio.AudioRecorder
 import de.dervomsee.voice2txt.settings.SettingsManager
 import de.dervomsee.voice2txt.whisper.ModelDownloader
@@ -97,6 +99,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var whisperContext: WhisperContext? = null
     private val audioRecorder = AudioRecorder()
+    private val audioDecoder = AudioDecoder()
     private val recordedData = mutableListOf<Float>()
     
     // Using 6 threads for better balance on Pixel 8 (Tensor G3)
@@ -199,6 +202,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             stopTranscription()
         } else {
             startRecording()
+        }
+    }
+
+    fun transcribeFile(uri: Uri) {
+        if (whisperContext == null) {
+            statusMessage = getApplication<Application>().getString(R.string.model_required)
+            return
+        }
+
+        viewModelScope.launch {
+            isTranscribing = true
+            isAborted = false
+            statusMessage = getApplication<Application>().getString(R.string.decoding_audio)
+            
+            val data = audioDecoder.decodeToFloatArray(getApplication(), uri)
+            
+            if (data != null && data.isNotEmpty()) {
+                statusMessage = "Transcribing..."
+                var result = ""
+                val durationMs = (data.size.toFloat() / 16000f) * 1000f
+                
+                val inferenceTimeMs = measureTimeMillis {
+                    result = whisperContext?.transcribeData(data, selectedLanguage, whisperThreads) ?: ""
+                }
+                
+                if (inferenceTimeMs > 0) {
+                    lastPerformanceRtf = durationMs / inferenceTimeMs.toFloat()
+                }
+
+                transcription = result
+                isTranscribing = false
+                
+                if (!isAborted) {
+                    statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
+                } else {
+                    lastPerformanceRtf = 0f
+                }
+            } else {
+                isTranscribing = false
+                statusMessage = getApplication<Application>().getString(R.string.failed_to_decode)
+            }
         }
     }
 
