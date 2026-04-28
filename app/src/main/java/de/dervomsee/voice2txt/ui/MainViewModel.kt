@@ -52,6 +52,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var isTranscribing by mutableStateOf(false)
         private set
 
+    var transcriptionProgress by mutableStateOf(0f)
+        private set
+
     var isDownloading by mutableStateOf(false)
         private set
 
@@ -220,11 +223,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             
             if (data != null && data.isNotEmpty()) {
                 statusMessage = "Transcribing..."
+                transcriptionProgress = 0f
                 var result = ""
                 val durationMs = (data.size.toFloat() / 16000f) * 1000f
                 
                 val inferenceTimeMs = measureTimeMillis {
-                    result = whisperContext?.transcribeData(data, selectedLanguage, whisperThreads) ?: ""
+                    result = whisperContext?.transcribeData(
+                        data = data, 
+                        language = selectedLanguage, 
+                        numThreads = whisperThreads,
+                        onProgress = { transcriptionProgress = it / 100f }
+                    ) ?: ""
                 }
                 
                 if (inferenceTimeMs > 0) {
@@ -233,6 +242,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 transcription = result
                 isTranscribing = false
+                transcriptionProgress = 0f
                 
                 if (!isAborted) {
                     statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
@@ -405,12 +415,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val data = recordedData.toFloatArray()
             if (data.isNotEmpty()) {
                 isTranscribing = true
+                transcriptionProgress = 0f
                 isAborted = false
                 var result = ""
                 val durationMs = (data.size.toFloat() / 16000f) * 1000f
                 
                 val inferenceTimeMs = measureTimeMillis {
-                    result = whisperContext?.transcribeData(data, selectedLanguage, whisperThreads) ?: ""
+                    result = whisperContext?.transcribeData(
+                        data = data, 
+                        language = selectedLanguage, 
+                        numThreads = whisperThreads,
+                        onProgress = { transcriptionProgress = it / 100f }
+                    ) ?: ""
                 }
                 
                 if (inferenceTimeMs > 0) {
@@ -419,6 +435,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 transcription = result
                 isTranscribing = false
+                transcriptionProgress = 0f
                 
                 if (!isAborted) {
                     statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)

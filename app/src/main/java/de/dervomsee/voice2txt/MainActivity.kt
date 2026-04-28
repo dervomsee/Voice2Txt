@@ -170,6 +170,13 @@ fun MainScreen(viewModel: MainViewModel) {
                 color = MaterialTheme.colorScheme.primary
             )
 
+            if (viewModel.isTranscribing) {
+                LinearProgressIndicator(
+                    progress = { viewModel.transcriptionProgress },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+            }
+
             if (viewModel.lastPerformanceRtf > 0f) {
                 Text(
                     text = stringResource(R.string.performance_label, viewModel.lastPerformanceRtf),

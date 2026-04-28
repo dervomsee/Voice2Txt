@@ -18,8 +18,21 @@
 
 static bool g_abort_transcription = false;
 
-bool whisper_abort_callback(void * user_data) {
+bool jni_whisper_abort_callback(void * user_data) {
     return g_abort_transcription;
+}
+
+struct progress_callback_user_data {
+    JNIEnv *env;
+    jobject callback_obj;
+    jmethodID on_progress_mid;
+};
+
+void jni_whisper_progress_callback(struct whisper_context * ctx, struct whisper_state * state, int progress, void * user_data) {
+    struct progress_callback_user_data *data = (struct progress_callback_user_data *)user_data;
+    if (data && data->callback_obj && data->on_progress_mid) {
+        (*data->env)->CallVoidMethod(data->env, data->callback_obj, data->on_progress_mid, progress);
+    }
 }
 
 JNIEXPORT jlong JNICALL
@@ -66,7 +79,7 @@ Java_de_dervomsee_voice2txt_whisper_WhisperLib_freeContext(
 
 JNIEXPORT jint JNICALL
 Java_de_dervomsee_voice2txt_whisper_WhisperLib_fullTranscribe(
-        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring lang_str) {
+        JNIEnv *env, jobject thiz, jlong context_ptr, jint num_threads, jfloatArray audio_data, jstring lang_str, jobject callback) {
     struct whisper_context *context = (struct whisper_context *) context_ptr;
     jfloat *audio_data_arr = (*env)->GetFloatArrayElements(env, audio_data, NULL);
     const jsize audio_data_length = (*env)->GetArrayLength(env, audio_data);
@@ -79,8 +92,26 @@ Java_de_dervomsee_voice2txt_whisper_WhisperLib_fullTranscribe(
     params.language = lang_chars;
 
     g_abort_transcription = false;
-    params.abort_callback = whisper_abort_callback;
+    params.abort_callback = jni_whisper_abort_callback;
     params.abort_callback_user_data = NULL;
+
+    struct progress_callback_user_data callback_data = {0};
+    if (callback != NULL) {
+        jclass callback_class = (*env)->GetObjectClass(env, callback);
+        callback_data.env = env;
+        callback_data.callback_obj = callback;
+        callback_data.on_progress_mid = (*env)->GetMethodID(env, callback_class, "onProgress", "(I)V");
+
+        if (callback_data.on_progress_mid == NULL) {
+            LOGE("Failed to find onProgress method ID. ProGuard might have obfuscated it.");
+            if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionClear(env);
+            }
+        } else {
+            params.progress_callback = jni_whisper_progress_callback;
+            params.progress_callback_user_data = &callback_data;
+        }
+    }
 
     int result = whisper_full(context, params, audio_data_arr, audio_data_length);
 

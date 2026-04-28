@@ -20,10 +20,23 @@ class WhisperContext private constructor(private var ptr: Long) {
         fun getSystemInfo(): String = WhisperLib.getSystemInfo()
     }
 
-    suspend fun transcribeData(data: FloatArray, language: String = "auto", numThreads: Int = 4): String = withContext(Dispatchers.Default) {
+    suspend fun transcribeData(
+        data: FloatArray, 
+        language: String = "auto", 
+        numThreads: Int = 4,
+        onProgress: ((Int) -> Unit)? = null
+    ): String = withContext(Dispatchers.Default) {
         if (ptr == 0L) return@withContext ""
 
-        val result = WhisperLib.fullTranscribe(ptr, numThreads, data, language)
+        val callback = if (onProgress != null) {
+            object : WhisperLib.WhisperProgressCallback {
+                override fun onProgress(progress: Int) {
+                    onProgress(progress)
+                }
+            }
+        } else null
+
+        val result = WhisperLib.fullTranscribe(ptr, numThreads, data, language, callback)
         if (result != 0) {
             Log.e(TAG, "Transcription failed with error code $result")
             return@withContext ""
