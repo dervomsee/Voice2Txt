@@ -1,7 +1,11 @@
 package de.dervomsee.voice2txt
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -49,10 +53,37 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
 }
 
 @Composable
 fun AppContent(viewModel: MainViewModel = viewModel()) {
+    val context = LocalContext.current
+    val activity = context as? ComponentActivity
+
+    LaunchedEffect(activity?.intent) {
+        activity?.intent?.let { intent ->
+            if (intent.action == Intent.ACTION_SEND && (intent.type?.startsWith("audio/") == true)) {
+                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra<Parcelable>(Intent.EXTRA_STREAM) as? Uri
+                }
+                
+                uri?.let {
+                    viewModel.transcribeFile(it)
+                    // Clear the intent so it doesn't re-trigger on configuration change
+                    intent.action = null
+                }
+            }
+        }
+    }
+
     // Handle system back gesture/button
     BackHandler(enabled = viewModel.currentScreen !is Screen.Main) {
         viewModel.navigateTo(Screen.Main)
