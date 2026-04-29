@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Scaling and centering the content to fit within the 66dp safe zone (approx. 0.6x scale) -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="0"
+        android:translateY="0">
+
+        <!-- Speed lines (Left side) -->
+        <path
+            android:fillColor="#4DFFFFFF"
+            android:pathData="M25,35h15v2h-15z M20,45h20v2h-20z M23,55h15v2h-15z M21,65h18v2h-18z M26,75h12v2h-12z" />
+
+        <!-- Microphone Main Body -->
+        <path
+            android:fillColor="#F0F4FF"
+            android:pathData="M54,28c-5,0 -9,4 -9,9v18c0,5 4,9 9,9s9,-4 9,-9V37C63,32 59,28 54,28z" />
+
+        <!-- Microphone Outer Ring/Stand -->
+        <path
+            android:fillColor="#F0F4FF"
+            android:pathData="M71,55c0,9 -7.6,16.4 -17,16.4S37,64 37,55h-3.5c0,10.5 8.3,19.2 18.8,19.9V82h-6v4h15.5v-4h-6V74.9C66.2,74.2 74.5,65.5 74.5,55H71z" />
+
+        <!-- Sparkles/Plus signs (Top Right) -->
+        <!-- Large plus -->
+        <path
+            android:fillColor="#F0F4FF"
+            android:pathData="M78,22h2v4h4v2h-4v4h-2v-4h-4v-2h4z" />
+        <!-- Medium plus -->
+        <path
+            android:fillColor="#A0C4FF"
+            android:pathData="M68,18h1.5v3h3v1.5h-3v3h-1.5v-3h-3v-1.5h3z" />
+        <!-- Small plus -->
+        <path
+            android:fillColor="#A0C4FF"
+            android:pathData="M88,38h1.5v3h3v1.5h-3v3h-1.5v-3h-3v-1.5h3z" />
+    </group>
+
+</vector>
