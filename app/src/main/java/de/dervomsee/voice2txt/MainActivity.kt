@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.IntentCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.dervomsee.voice2txt.ui.BenchmarkResult
 import de.dervomsee.voice2txt.ui.MainViewModel
@@ -57,30 +59,34 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // Handle the intent if it's an audio file being shared
+        val viewModel = androidx.lifecycle.ViewModelProvider(this).get(MainViewModel::class.java)
+        handleIntent(intent, viewModel)
+    }
+
+    internal fun handleIntent(intent: Intent?, viewModel: MainViewModel) {
+        if (intent == null) return
+        
+        Log.d("MainActivity", "handleIntent: action=${intent.action}, type=${intent.type}")
+        if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("audio/") == true) {
+            val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            
+            Log.d("MainActivity", "Extracted URI: $uri")
+            uri?.let {
+                viewModel.transcribeFile(it)
+            }
+        }
     }
 }
 
 @Composable
 fun AppContent(viewModel: MainViewModel = viewModel()) {
     val context = LocalContext.current
-    val activity = context as? ComponentActivity
+    val activity = context as? MainActivity
 
-    LaunchedEffect(activity?.intent) {
-        activity?.intent?.let { intent ->
-            if (intent.action == Intent.ACTION_SEND && (intent.type?.startsWith("audio/") == true)) {
-                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra<Parcelable>(Intent.EXTRA_STREAM) as? Uri
-                }
-                
-                uri?.let {
-                    viewModel.transcribeFile(it)
-                    // Clear the intent so it doesn't re-trigger on configuration change
-                    intent.action = null
-                }
-            }
+    LaunchedEffect(activity) {
+        activity?.let {
+            it.handleIntent(it.intent, viewModel)
         }
     }
 

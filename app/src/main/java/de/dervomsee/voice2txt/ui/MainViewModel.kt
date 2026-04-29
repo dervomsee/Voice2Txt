@@ -17,6 +17,8 @@ import de.dervomsee.voice2txt.whisper.WhisperContext
 import de.dervomsee.voice2txt.whisper.WhisperModel
 import de.dervomsee.voice2txt.whisper.availableModels
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -108,8 +110,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Using 6 threads for better balance on Pixel 8 (Tensor G3)
     private val whisperThreads = 6
 
+    private var initJob: Job? = null
+    private var loadJob: Job? = null
+
     init {
-        viewModelScope.launch {
+        initJob = viewModelScope.launch {
             whisperSystemInfo = WhisperContext.getSystemInfo()
             selectedLanguage = settingsManager.selectedLanguage.first()
             useGpu = settingsManager.useGpu.first()
@@ -185,7 +190,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadModel() {
-        viewModelScope.launch(Dispatchers.IO) {
+        val oldJob = loadJob
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            oldJob?.cancelAndJoin()
             try {
                 statusMessage = getApplication<Application>().getString(R.string.model_loading, selectedModel.name)
                 whisperContext?.release()
@@ -209,12 +216,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun transcribeFile(uri: Uri) {
-        if (whisperContext == null) {
-            statusMessage = getApplication<Application>().getString(R.string.model_required)
-            return
-        }
-
+        Log.d("MainViewModel", "transcribeFile: $uri")
         viewModelScope.launch {
+            if (initJob?.isActive == true || loadJob?.isActive == true) {
+                statusMessage = "Waiting for model to load..."
+            }
+            initJob?.join()
+            loadJob?.join()
+
+            if (whisperContext == null) {
+                statusMessage = getApplication<Application>().getString(R.string.model_required)
+                return@launch
+            }
+
+            // Switch to main screen if we are elsewhere (e.g. Settings)
+            currentScreen = Screen.Main
+            transcription = ""
+
             isTranscribing = true
             isAborted = false
             statusMessage = getApplication<Application>().getString(R.string.decoding_audio)

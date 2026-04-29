@@ -20,9 +20,13 @@ class AudioDecoder {
     suspend fun decodeToFloatArray(context: Context, uri: Uri): FloatArray? = withContext(Dispatchers.IO) {
         val extractor = MediaExtractor()
         try {
+            Log.d(TAG, "Attempting to decode URI: $uri")
             context.contentResolver.openFileDescriptor(uri, "r")?.use { fd ->
                 extractor.setDataSource(fd.fileDescriptor)
-            } ?: return@withContext null
+            } ?: run {
+                Log.e(TAG, "Failed to open file descriptor for URI: $uri")
+                return@withContext null
+            }
 
             val trackIndex = selectAudioTrack(extractor)
             if (trackIndex < 0) return@withContext null
