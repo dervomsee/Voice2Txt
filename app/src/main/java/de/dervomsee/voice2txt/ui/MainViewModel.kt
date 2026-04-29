@@ -2,249 +2,472 @@ package de.dervomsee.voice2txt.ui
 
 import android.app.Application
 import android.net.Uri
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
-import android.os.Build
+import android.util.Log
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import de.dervomsee.voice2txt.audio.AudioConverter
-import de.dervomsee.voice2txt.data.SettingsRepository
-import de.dervomsee.voice2txt.engine.GenAISpeechEngine
-import de.dervomsee.voice2txt.engine.SpeechEngine
-import de.dervomsee.voice2txt.engine.SpeechResult
+import de.dervomsee.voice2txt.R
+import de.dervomsee.voice2txt.audio.AudioDecoder
+import de.dervomsee.voice2txt.audio.AudioRecorder
+import de.dervomsee.voice2txt.settings.SettingsManager
+import de.dervomsee.voice2txt.whisper.ModelDownloader
+import de.dervomsee.voice2txt.whisper.WhisperContext
+import de.dervomsee.voice2txt.whisper.WhisperModel
+import de.dervomsee.voice2txt.whisper.availableModels
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.system.measureTimeMillis
 
-data class AppInfo(
-    val appVersion: String,
-    val androidVersion: String,
-    val apiLevel: Int,
-    val deviceInfo: String,
-    val aiStatus: Map<String, String>
+sealed class Screen {
+    data object Main : Screen()
+    data object Settings : Screen()
+    data object Benchmark : Screen()
+    data object About : Screen()
+}
+
+data class BenchmarkResult(
+    val modelName: String,
+    val isGpu: Boolean,
+    val inferenceTimeMs: Long,
+    val rtf: Float,
+    val transcription: String
 )
 
-    class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val settingsManager = SettingsManager(application)
 
-    private val settingsRepository = SettingsRepository(application)
-    private val audioConverter = AudioConverter(application, settingsRepository.silenceThreshold).apply {
-        setBandpassEnabled(settingsRepository.enableBandpass)
-        setBandpassFrequencies(settingsRepository.lowFreq, settingsRepository.highFreq)
-    }
-    private val genAiEngine = GenAISpeechEngine()
-
-    val engines = listOf(genAiEngine)
-
-    var currentEngine by mutableStateOf<SpeechEngine>(engines[0])
+    var currentScreen by mutableStateOf<Screen>(Screen.Main)
         private set
 
-    var transcriptionText by mutableStateOf("")
+    var transcription by mutableStateOf("")
         private set
 
-    var isProcessing by mutableStateOf(false)
+    var isRecording by mutableStateOf(false)
         private set
 
-    var errorText by mutableStateOf<String?>(null)
+    var isTranscribing by mutableStateOf(false)
         private set
 
-    var appInfo by mutableStateOf<AppInfo?>(null)
+    var transcriptionProgress by mutableStateOf(0f)
         private set
 
-    var debugPlayAudio by mutableStateOf(settingsRepository.debugPlayAudio)
+    var isDownloading by mutableStateOf(false)
         private set
 
-    var silenceThreshold by mutableIntStateOf(settingsRepository.silenceThreshold)
+    var downloadProgress by mutableStateOf(0f)
         private set
 
-    var enableBandpass by mutableStateOf(settingsRepository.enableBandpass)
+    var statusMessage by mutableStateOf("")
         private set
 
-    var lowFreq by mutableIntStateOf(settingsRepository.lowFreq)
+    var selectedLanguage by mutableStateOf("de")
         private set
 
-    var highFreq by mutableIntStateOf(settingsRepository.highFreq)
+    var useGpu by mutableStateOf(false)
         private set
 
-    var audioStats by mutableStateOf<AudioStats?>(null)
+    var selectedModel by mutableStateOf(availableModels[1]) // Default to Tiny Q8_0
         private set
 
-    private var debugAudioTrack: AudioTrack? = null
+    var availableModelsList by mutableStateOf(availableModels)
+        private set
 
-    data class AudioStats(
-        val min: Int,
-        val max: Int,
-        val peak: Int
-    )
+    var isLoadingModels by mutableStateOf(false)
+        private set
 
-    fun toggleDebugPlayAudio() {
-        debugPlayAudio = !debugPlayAudio
-        settingsRepository.debugPlayAudio = debugPlayAudio
-    }
+    var lastPerformanceRtf by mutableStateOf(0f)
+        private set
 
-    fun updateSilenceThreshold(threshold: Int) {
-        silenceThreshold = threshold
-        settingsRepository.silenceThreshold = threshold
-        audioConverter.setSilenceThreshold(threshold)
-    }
+    var benchmarkResults by mutableStateOf<List<BenchmarkResult>>(emptyList())
+        private set
 
-    fun toggleBandpass() {
-        enableBandpass = !enableBandpass
-        settingsRepository.enableBandpass = enableBandpass
-        audioConverter.setBandpassEnabled(enableBandpass)
-    }
+    var isBenchmarking by mutableStateOf(false)
+        private set
 
-    fun updateBandpassFrequencies(low: Int, high: Int) {
-        lowFreq = low
-        highFreq = high
-        settingsRepository.lowFreq = low
-        settingsRepository.highFreq = high
-        audioConverter.setBandpassFrequencies(low, high)
-    }
+    var whisperSystemInfo by mutableStateOf("")
+        private set
 
-    fun selectEngine(engine: SpeechEngine) {
-        currentEngine = engine
-    }
+    var appVersion by mutableStateOf("1.0")
+        private set
 
-    fun loadAppInfo() {
-        viewModelScope.launch {
-            val context = getApplication<Application>().applicationContext
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            val aiStatus = genAiEngine.getDetailedStatus()
+    var benchmarkStatus by mutableStateOf("")
+        private set
+
+    var benchmarkSampleData by mutableStateOf<FloatArray?>(null)
+        private set
+
+    private var whisperContext: WhisperContext? = null
+    private val audioRecorder = AudioRecorder()
+    private val audioDecoder = AudioDecoder()
+    private val recordedData = mutableListOf<Float>()
+    
+    // Using 6 threads for better balance on Pixel 8 (Tensor G3)
+    private val whisperThreads = 6
+
+    private var initJob: Job? = null
+    private var loadJob: Job? = null
+
+    init {
+        initJob = viewModelScope.launch {
+            whisperSystemInfo = WhisperContext.getSystemInfo()
+            selectedLanguage = settingsManager.selectedLanguage.first()
+            useGpu = settingsManager.useGpu.first()
+            val modelFile = settingsManager.selectedModelFile.first()
+            selectedModel = availableModels.find { it.fileName == modelFile } ?: availableModels[1]
             
-            appInfo = AppInfo(
-                appVersion = "${packageInfo.versionName} (${packageInfo.longVersionCode})",
-                androidVersion = Build.VERSION.RELEASE,
-                apiLevel = Build.VERSION.SDK_INT,
-                deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}",
-                aiStatus = aiStatus
-            )
+            refreshModels()
+            checkModel()
         }
     }
 
-    fun dismissAppInfo() {
-        appInfo = null
+    private var isAborted = false
+
+    fun navigateTo(screen: Screen) {
+        currentScreen = screen
     }
 
-    fun processAudio(uri: Uri) {
+    fun refreshModels() {
         viewModelScope.launch {
-            isProcessing = true
-            errorText = null
-            transcriptionText = ""
-
-            try {
-                var finalizedText = ""
-                audioStats = null
-                if (debugPlayAudio) {
-                    initDebugAudioTrack()
-                }
-                withContext(Dispatchers.IO) {
-                    currentEngine.transcribe { onData ->
-                        audioConverter.convertToPcm(uri) { pcm ->
-                            if (pcm.isNotEmpty()) {
-                                updateStats(pcm)
-                                if (debugPlayAudio) {
-                                    debugAudioTrack?.write(pcm, 0, pcm.size)
-                                }
-                            }
-                            onData(pcm)
-                        }
-                    }.collect { result ->
-                        withContext(Dispatchers.Main) {
-                            when (result) {
-                                is SpeechResult.Partial -> {
-                                    transcriptionText = finalizedText + result.text
-                                }
-                                is SpeechResult.Final -> {
-                                    finalizedText += result.text + " "
-                                    transcriptionText = finalizedText
-                                }
-                                is SpeechResult.Error -> {
-                                    errorText = result.message
-                                    isProcessing = false
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                errorText = e.localizedMessage ?: "Processing error"
-            } finally {
-                isProcessing = false
-                releaseDebugAudioTrack()
-            }
+            isLoadingModels = true
+            availableModelsList = ModelDownloader.fetchAvailableModels()
+            isLoadingModels = false
         }
     }
 
-    private fun updateStats(pcm: ShortArray) {
-        var min = 0
-        var max = 0
-        var sumSq = 0.0
-        for (s in pcm) {
-            val v = s.toInt()
-            if (v < min) min = v
-            if (v > max) max = v
-            sumSq += v.toDouble() * v.toDouble()
+    fun selectModel(model: WhisperModel) {
+        selectedModel = model
+        viewModelScope.launch {
+            settingsManager.setSelectedModelFile(model.fileName)
         }
-        val peak = kotlin.math.max(kotlin.math.abs(min), kotlin.math.abs(max))
+        checkModel()
+    }
 
-        // Update with the most "extreme" values seen so far for tuning
-        val current = audioStats
-        audioStats = if (current == null) {
-            AudioStats(min, max, peak)
+    private fun checkModel() {
+        if (!ModelDownloader.isModelDownloaded(getApplication(), selectedModel.fileName)) {
+            statusMessage = getApplication<Application>().getString(R.string.model_required)
+            whisperContext?.release()
+            whisperContext = null
         } else {
-            AudioStats(
-                kotlin.math.min(current.min, min),
-                kotlin.math.max(current.max, max),
-                peak // Peak is current for this chunk
-            )
+            loadModel()
         }
     }
 
-    private fun initDebugAudioTrack() {
-        val minBufferSize = AudioTrack.getMinBufferSize(
-            16000,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
-        debugAudioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(16000)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(minBufferSize * 4)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
-        debugAudioTrack?.play()
-    }
-
-    private fun releaseDebugAudioTrack() {
-        debugAudioTrack?.apply {
-            try {
-                stop()
-                release()
-            } catch (_: Exception) {
-                // ignore
+    fun downloadModel() {
+        if (isDownloading) return
+        viewModelScope.launch {
+            isDownloading = true
+            statusMessage = getApplication<Application>().getString(R.string.status_label, "Downloading...")
+            val success = ModelDownloader.downloadModel(getApplication(), selectedModel) { progress ->
+                downloadProgress = progress
+            }
+            isDownloading = false
+            if (success) {
+                loadModel()
+            } else {
+                statusMessage = "Download failed."
             }
         }
-        debugAudioTrack = null
+    }
+
+    fun deleteModel(model: WhisperModel) {
+        if (ModelDownloader.deleteModel(getApplication(), model.fileName)) {
+            if (selectedModel.fileName == model.fileName) {
+                whisperContext?.release()
+                whisperContext = null
+                statusMessage = getApplication<Application>().getString(R.string.model_required)
+            }
+            // Trigger UI update
+            val currentModels = availableModelsList
+            availableModelsList = emptyList()
+            availableModelsList = currentModels
+        }
+    }
+
+    private fun loadModel() {
+        val oldJob = loadJob
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            oldJob?.cancelAndJoin()
+            try {
+                statusMessage = getApplication<Application>().getString(R.string.model_loading, selectedModel.name)
+                whisperContext?.release()
+                val modelFile = ModelDownloader.getModelFile(getApplication(), selectedModel.fileName)
+                whisperContext = WhisperContext.createContextFromFile(modelFile.absolutePath, useGpu)
+                statusMessage = getApplication<Application>().getString(R.string.status_label, "Ready")
+            } catch (e: Exception) {
+                statusMessage = "Failed to load model: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun toggleRecording() {
+        if (isRecording) {
+            stopRecording()
+        } else if (isTranscribing) {
+            stopTranscription()
+        } else {
+            startRecording()
+        }
+    }
+
+    fun transcribeFile(uri: Uri) {
+        Log.d("MainViewModel", "transcribeFile: $uri")
+        viewModelScope.launch {
+            if (initJob?.isActive == true || loadJob?.isActive == true) {
+                statusMessage = "Waiting for model to load..."
+            }
+            initJob?.join()
+            loadJob?.join()
+
+            if (whisperContext == null) {
+                statusMessage = getApplication<Application>().getString(R.string.model_required)
+                return@launch
+            }
+
+            // Switch to main screen if we are elsewhere (e.g. Settings)
+            currentScreen = Screen.Main
+            transcription = ""
+
+            isTranscribing = true
+            isAborted = false
+            statusMessage = getApplication<Application>().getString(R.string.decoding_audio)
+            
+            val data = audioDecoder.decodeToFloatArray(getApplication(), uri)
+            
+            if (data != null && data.isNotEmpty()) {
+                statusMessage = "Transcribing..."
+                transcriptionProgress = 0f
+                var result = ""
+                val durationMs = (data.size.toFloat() / 16000f) * 1000f
+                
+                val inferenceTimeMs = measureTimeMillis {
+                    result = whisperContext?.transcribeData(
+                        data = data, 
+                        language = selectedLanguage, 
+                        numThreads = whisperThreads,
+                        onProgress = { transcriptionProgress = it / 100f }
+                    ) ?: ""
+                }
+                
+                if (inferenceTimeMs > 0) {
+                    lastPerformanceRtf = durationMs / inferenceTimeMs.toFloat()
+                }
+
+                transcription = result
+                isTranscribing = false
+                transcriptionProgress = 0f
+                
+                if (!isAborted) {
+                    statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
+                } else {
+                    lastPerformanceRtf = 0f
+                }
+            } else {
+                isTranscribing = false
+                statusMessage = getApplication<Application>().getString(R.string.failed_to_decode)
+            }
+        }
+    }
+
+    fun stopTranscription() {
+        isAborted = true
+        whisperContext?.stopTranscription()
+        statusMessage = getApplication<Application>().getString(R.string.transcription_aborted)
+    }
+
+    fun toggleBenchmarkRecording() {
+        if (isRecording) {
+            stopBenchmarkRecording()
+        } else {
+            startBenchmarkRecording()
+        }
+    }
+
+    private fun startBenchmarkRecording() {
+        viewModelScope.launch {
+            recordedData.clear()
+            isRecording = true
+            audioRecorder.startRecording { buffer ->
+                recordedData.addAll(buffer.toList())
+            }
+        }
+    }
+
+    private fun stopBenchmarkRecording() {
+        isRecording = false
+        audioRecorder.stopRecording()
+        benchmarkSampleData = recordedData.toFloatArray()
+    }
+
+    fun loadBenchmarkFile(uri: Uri) {
+        viewModelScope.launch {
+            benchmarkStatus = getApplication<Application>().getString(R.string.decoding_audio)
+            isBenchmarking = true
+            val data = audioDecoder.decodeToFloatArray(getApplication(), uri)
+            if (data != null && data.isNotEmpty()) {
+                benchmarkSampleData = data
+                benchmarkStatus = "File loaded. Ready for benchmark."
+            } else {
+                benchmarkStatus = getApplication<Application>().getString(R.string.failed_to_decode)
+            }
+            isBenchmarking = false
+        }
+    }
+
+    fun runBenchmark() {
+        if (benchmarkSampleData == null) return
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            isBenchmarking = true
+            benchmarkResults = emptyList()
+            
+            val downloadedModels = availableModelsList.filter { 
+                ModelDownloader.isModelDownloaded(getApplication(), it.fileName) 
+            }
+            
+            if (downloadedModels.isEmpty()) {
+                benchmarkStatus = getApplication<Application>().getString(R.string.benchmark_no_models)
+                isBenchmarking = false
+                return@launch
+            }
+
+            // Save current state to restore later
+            val previousModel = selectedModel
+            val previousGpu = useGpu
+
+            try {
+                for (model in downloadedModels) {
+                    // Benchmark CPU
+                    benchmarkModel(model, false)
+                    // Benchmark GPU
+                    benchmarkModel(model, true)
+                }
+            } finally {
+                // Restore original model
+                selectedModel = previousModel
+                useGpu = previousGpu
+                loadModel()
+                isBenchmarking = false
+                benchmarkStatus = ""
+            }
+        }
+    }
+
+    private suspend fun benchmarkModel(model: WhisperModel, gpu: Boolean) {
+        val deviceStr = if (gpu) "GPU" else "CPU"
+        benchmarkStatus = getApplication<Application>().getString(R.string.benchmark_processing, model.name, deviceStr)
+        
+        try {
+            val modelFile = ModelDownloader.getModelFile(getApplication(), model.fileName)
+            val context = WhisperContext.createContextFromFile(modelFile.absolutePath, gpu)
+            
+            val data = benchmarkSampleData ?: return
+            val durationMs = (data.size.toFloat() / 16000f) * 1000f
+            
+            var result = ""
+            val inferenceTimeMs = measureTimeMillis {
+                result = context.transcribeData(data, selectedLanguage, whisperThreads)
+            }
+            
+            val rtf = if (inferenceTimeMs > 0) durationMs / inferenceTimeMs.toFloat() else 0f
+            
+            val benchmarkResult = BenchmarkResult(
+                modelName = model.name,
+                isGpu = gpu,
+                inferenceTimeMs = inferenceTimeMs,
+                rtf = rtf,
+                transcription = result
+            )
+            
+            withContext(Dispatchers.Main) {
+                benchmarkResults = benchmarkResults + benchmarkResult
+            }
+            
+            context.release()
+        } catch (e: Exception) {
+            Log.e("Benchmark", "Failed to benchmark ${model.name} on $deviceStr", e)
+        }
+    }
+
+    fun setLanguage(lang: String) {
+        selectedLanguage = lang
+        viewModelScope.launch {
+            settingsManager.setSelectedLanguage(lang)
+        }
+    }
+
+    fun toggleGpu(enabled: Boolean) {
+        useGpu = enabled
+        viewModelScope.launch {
+            settingsManager.setUseGpu(enabled)
+        }
+        loadModel()
+    }
+
+    private fun startRecording() {
+        if (whisperContext == null) {
+            statusMessage = "Please load model first."
+            return
+        }
+        viewModelScope.launch {
+            recordedData.clear()
+            isRecording = true
+            statusMessage = "Recording..."
+            audioRecorder.startRecording { buffer ->
+                recordedData.addAll(buffer.toList())
+            }
+        }
+    }
+
+    private fun stopRecording() {
+        isRecording = false
+        statusMessage = "Processing..."
+        audioRecorder.stopRecording()
+        
+        viewModelScope.launch {
+            val data = recordedData.toFloatArray()
+            if (data.isNotEmpty()) {
+                isTranscribing = true
+                transcriptionProgress = 0f
+                isAborted = false
+                var result = ""
+                val durationMs = (data.size.toFloat() / 16000f) * 1000f
+                
+                val inferenceTimeMs = measureTimeMillis {
+                    result = whisperContext?.transcribeData(
+                        data = data, 
+                        language = selectedLanguage, 
+                        numThreads = whisperThreads,
+                        onProgress = { transcriptionProgress = it / 100f }
+                    ) ?: ""
+                }
+                
+                if (inferenceTimeMs > 0) {
+                    lastPerformanceRtf = durationMs / inferenceTimeMs.toFloat()
+                }
+
+                transcription = result
+                isTranscribing = false
+                transcriptionProgress = 0f
+                
+                if (!isAborted) {
+                    statusMessage = getApplication<Application>().getString(R.string.transcription_finished, lastPerformanceRtf)
+                } else {
+                    lastPerformanceRtf = 0f
+                }
+            } else {
+                statusMessage = "No audio recorded."
+            }
+        }
     }
 
     override fun onCleared() {
         super.onCleared()
-        releaseDebugAudioTrack()
+        whisperContext?.release()
     }
 }

@@ -16,9 +16,23 @@ android {
         minSdk = 34
         targetSdk = 36
         versionCode = 1
-        versionName = "1.2.0"
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags("-std=c++17", "-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
+                arguments("-DWHISPER_BUILD_TESTS=OFF", "-DWHISPER_BUILD_EXAMPLES=OFF", "-DCMAKE_BUILD_TYPE=Release")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {
@@ -29,6 +43,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug") // Temporary for easier testing
+            installation {
+                enableBaselineProfile = false
+            }
+//            externalNativeBuild {
+//                cmake {
+//                    cppFlags("-O3", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-fdata-sections", "-ffunction-sections")
+//                    arguments("-DCMAKE_BUILD_TYPE=Release")
+//                }
+//            }
         }
     }
     compileOptions {
@@ -44,15 +68,14 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.mlkit.genai.speech)
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

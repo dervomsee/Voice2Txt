@@ -1,21 +1,18 @@
-# Android Studio / IntelliJ
-.idea/
 *.iml
-.gradle/
-build/
-captures/
-.externalNativeBuild/
-.cxx/
-local.properties
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
 .DS_Store
-
-# Android Application
-app/build/
-*.apk
-*.aar
-*.jks
-*.aab
-
-# AI Agent Specific
-.artifacts/
-
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/.kotlin/sessions/
+/.artifacts/
+/.idea/planningMode.xml
