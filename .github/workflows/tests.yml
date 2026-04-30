@@ -11,7 +11,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 45
 
     steps:
@@ -41,22 +41,22 @@ jobs:
         with:
           api-level: 34
           target: google_apis
-          arch: x86_64
+          arch: aarch64
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu host -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            # Create temp dir and push model
-            adb shell mkdir -p /data/local/tmp/models
-            adb push models/ggml-tiny-q8_0.bin /data/local/tmp/models/
+            # 1. Root-Zugriff aktivieren
+            adb root
             
-            # Install apps so data directory exists
-            ./gradlew installDebug installDebugAndroidTest
-            
-            # Move model to app's internal storage
-            # We use 'run-as' or direct shell if it's an emulator with root-shell access (Google APIs usually is)
+            # 2. Verzeichnis direkt im App-Ordner erstellen
             adb shell "mkdir -p /data/data/de.dervomsee.voice2txt/files/models"
-            adb shell "cp /data/local/tmp/models/ggml-tiny-q8_0.bin /data/data/de.dervomsee.voice2txt/files/models/"
             
-            # Run the actual tests
+            # 3. Modell direkt dorthin pushen (spart den Umweg über /tmp)
+            adb push models/ggml-tiny-q8_0.bin /data/data/de.dervomsee.voice2txt/files/models/
+            
+            # 4. Berechtigungen sicherstellen (damit die App die Datei lesen kann)
+            adb shell "chmod -R 777 /data/data/de.dervomsee.voice2txt/files/models"
+            
+            # 5. Tests starten
             ./gradlew connectedDebugAndroidTest
