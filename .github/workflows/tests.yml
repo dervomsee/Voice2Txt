@@ -43,20 +43,11 @@ jobs:
           target: google_apis
           arch: arm64-v8a
           force-avd-creation: false
-          emulator-options: -no-window -gpu host -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu auto -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            # 1. Root-Zugriff aktivieren
             adb root
-            
-            # 2. Verzeichnis direkt im App-Ordner erstellen
             adb shell "mkdir -p /data/data/de.dervomsee.voice2txt/files/models"
-            
-            # 3. Modell direkt dorthin pushen (spart den Umweg über /tmp)
             adb push models/ggml-tiny-q8_0.bin /data/data/de.dervomsee.voice2txt/files/models/
-            
-            # 4. Berechtigungen sicherstellen (damit die App die Datei lesen kann)
             adb shell "chmod -R 777 /data/data/de.dervomsee.voice2txt/files/models"
-            
-            # 5. Tests starten
             ./gradlew connectedDebugAndroidTest
