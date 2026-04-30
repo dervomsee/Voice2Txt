@@ -28,6 +28,11 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew test
 
+      - name: Download Whisper Model for Integration Test
+        run: |
+          mkdir -p models
+          curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q8_0.bin -o models/ggml-tiny-q8_0.bin
+
       - name: Run Instrumented Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -37,4 +42,18 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest
+          script: |
+            # Create temp dir and push model
+            adb shell mkdir -p /data/local/tmp/models
+            adb push models/ggml-tiny-q8_0.bin /data/local/tmp/models/
+            
+            # Install apps so data directory exists
+            ./gradlew installDebug installDebugAndroidTest
+            
+            # Move model to app's internal storage
+            # We use 'run-as' or direct shell if it's an emulator with root-shell access (Google APIs usually is)
+            adb shell "mkdir -p /data/data/de.dervomsee.voice2txt/files/models"
+            adb shell "cp /data/local/tmp/models/ggml-tiny-q8_0.bin /data/data/de.dervomsee.voice2txt/files/models/"
+            
+            # Run the actual tests
+            ./gradlew connectedDebugAndroidTest

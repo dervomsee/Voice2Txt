@@ -1,0 +1,15 @@
+Source Attribution for Test Assets
+
+The audio file "test_speech.mp3" is a sample from the following dataset:
+Dataset: German-Speech-Dataset
+Source: https://huggingface.co/datasets/Speech-data/German-Speech-Dataset
+Provider: speech-data.ai
+
+License:
+Creative Commons Attribution-NonCommercial-NoDerivs 4.0 International (CC BY-NC-ND 4.0)
+
+For more information about the license, visit:
+https://creativecommons.org/licenses/by-nc-nd/4.0/
+
+Usage in this project:
+This asset is used exclusively for non-commercial automated testing purposes in this open-source project.
