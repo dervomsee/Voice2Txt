@@ -119,7 +119,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             selectedLanguage = settingsManager.selectedLanguage.first()
             useGpu = settingsManager.useGpu.first()
             val modelFile = settingsManager.selectedModelFile.first()
-            selectedModel = availableModels.find { it.fileName == modelFile } ?: availableModels[1]
+            
+            // Try to find in the default list first, otherwise reconstruct it
+            selectedModel = availableModels.find { it.fileName == modelFile } 
+                ?: WhisperModel.fromFileName(modelFile)
             
             refreshModels()
             checkModel()

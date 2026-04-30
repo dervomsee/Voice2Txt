@@ -16,3 +16,4 @@ local.properties
 /.kotlin/sessions/
 /.artifacts/
 /.idea/planningMode.xml
+/.idea/runConfigurations.xml
