@@ -36,7 +36,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["appName"] = "Voice2Txt Debug"
+        }
         release {
+            manifestPlaceholders["appName"] = "Voice2Txt"
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

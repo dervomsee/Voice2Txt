@@ -115,6 +115,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var loadJob: Job? = null
 
     init {
+        try {
+            val packageInfo = application.packageManager.getPackageInfo(application.packageName, 0)
+            appVersion = packageInfo.versionName ?: "1.0"
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to get app version", e)
+        }
+
         initJob = viewModelScope.launch {
             whisperSystemInfo = WhisperContext.getSystemInfo()
             selectedLanguage = settingsManager.selectedLanguage.first()
