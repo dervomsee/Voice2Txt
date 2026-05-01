@@ -3,6 +3,7 @@ package de.dervomsee.voice2txt.ui
 import android.app.Application
 import android.net.Uri
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -472,5 +473,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         whisperContext?.release()
+    }
+
+    @VisibleForTesting
+    internal fun setTranscriptionForTesting(text: String) {
+        transcription = text
     }
 }

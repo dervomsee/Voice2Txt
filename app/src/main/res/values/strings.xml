@@ -55,4 +55,5 @@
     <string name="open_audio_file">Open Audio</string>
     <string name="decoding_audio">Decoding audio...</string>
     <string name="failed_to_decode">Failed to decode audio file.</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
 </resources>

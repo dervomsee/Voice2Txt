@@ -14,11 +14,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,8 +35,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -44,6 +49,7 @@ import de.dervomsee.voice2txt.ui.MainViewModel
 import de.dervomsee.voice2txt.ui.Screen
 import de.dervomsee.voice2txt.ui.theme.Voice2TxtTheme
 import de.dervomsee.voice2txt.whisper.ModelDownloader
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,10 +111,14 @@ fun AppContent(viewModel: MainViewModel = viewModel()) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     var showMenu by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -161,7 +171,8 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -191,10 +202,26 @@ fun MainScreen(viewModel: MainViewModel) {
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    text = viewModel.transcription.ifEmpty { stringResource(R.string.transcription_hint) },
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                SelectionContainer {
+                    val copiedMessage = stringResource(R.string.copied_to_clipboard)
+                    Text(
+                        text = viewModel.transcription.ifEmpty { stringResource(R.string.transcription_hint) },
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { /* Normal click */ },
+                                onLongClick = {
+                                    if (viewModel.transcription.isNotEmpty()) {
+                                        clipboardManager.setText(AnnotatedString(viewModel.transcription))
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(copiedMessage)
+                                        }
+                                    }
+                                }
+                            )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
