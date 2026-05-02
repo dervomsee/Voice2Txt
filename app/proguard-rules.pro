@@ -3,12 +3,14 @@
     native <methods>;
 }
 
--keep interface de.dervomsee.voice2txt.whisper.WhisperLib$WhisperProgressCallback {
+-keep interface de.dervomsee.voice2txt.whisper.WhisperLib$WhisperCallback {
     void onProgress(int);
+    void onNewSegment(java.lang.String, float[]);
 }
 
--keep class * implements de.dervomsee.voice2txt.whisper.WhisperLib$WhisperProgressCallback {
+-keep class * implements de.dervomsee.voice2txt.whisper.WhisperLib$WhisperCallback {
     void onProgress(int);
+    void onNewSegment(java.lang.String, float[]);
 }
 
 # Keep the ViewModel and its state

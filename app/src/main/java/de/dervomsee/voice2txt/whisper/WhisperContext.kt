@@ -24,14 +24,19 @@ class WhisperContext private constructor(private var ptr: Long) {
         data: FloatArray, 
         language: String = "auto", 
         numThreads: Int = 4,
-        onProgress: ((Int) -> Unit)? = null
+        onProgress: ((Int) -> Unit)? = null,
+        onNewSegment: ((Array<String>, FloatArray) -> Unit)? = null
     ): String = withContext(Dispatchers.Default) {
         if (ptr == 0L) return@withContext ""
 
-        val callback = if (onProgress != null) {
-            object : WhisperLib.WhisperProgressCallback {
+        val callback = if (onProgress != null || onNewSegment != null) {
+            object : WhisperLib.WhisperCallback {
                 override fun onProgress(progress: Int) {
-                    onProgress(progress)
+                    onProgress?.invoke(progress)
+                }
+
+                override fun onNewSegment(tokens: Array<String>, probabilities: FloatArray) {
+                    onNewSegment?.invoke(tokens, probabilities)
                 }
             }
         } else null

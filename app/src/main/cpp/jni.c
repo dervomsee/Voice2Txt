@@ -22,16 +22,49 @@ bool jni_whisper_abort_callback(void * user_data) {
     return g_abort_transcription;
 }
 
-struct progress_callback_user_data {
+struct whisper_callback_user_data {
     JNIEnv *env;
     jobject callback_obj;
     jmethodID on_progress_mid;
+    jmethodID on_new_segment_mid;
 };
 
 void jni_whisper_progress_callback(struct whisper_context * ctx, struct whisper_state * state, int progress, void * user_data) {
-    struct progress_callback_user_data *data = (struct progress_callback_user_data *)user_data;
+    struct whisper_callback_user_data *data = (struct whisper_callback_user_data *)user_data;
     if (data && data->callback_obj && data->on_progress_mid) {
         (*data->env)->CallVoidMethod(data->env, data->callback_obj, data->on_progress_mid, progress);
+    }
+}
+
+void jni_whisper_new_segment_callback(struct whisper_context * ctx, struct whisper_state * state, int n_new, void * user_data) {
+    struct whisper_callback_user_data *data = (struct whisper_callback_user_data *)user_data;
+    if (data && data->callback_obj && data->on_new_segment_mid) {
+        int n_segments = whisper_full_n_segments_from_state(state);
+        for (int i = n_segments - n_new; i < n_segments; i++) {
+            int n_tokens = whisper_full_n_tokens_from_state(state, i);
+
+            jclass string_class = (*data->env)->FindClass(data->env, "java/lang/String");
+            jobjectArray jtokens = (*data->env)->NewObjectArray(data->env, n_tokens, string_class, NULL);
+
+            jfloatArray jprobs = (*data->env)->NewFloatArray(data->env, n_tokens);
+            jfloat *probs = (*data->env)->GetFloatArrayElements(data->env, jprobs, NULL);
+
+            for (int j = 0; j < n_tokens; j++) {
+                const char * token_text = whisper_full_get_token_text_from_state(ctx, state, i, j);
+                jstring jtoken_text = (*data->env)->NewStringUTF(data->env, token_text);
+                (*data->env)->SetObjectArrayElement(data->env, jtokens, j, jtoken_text);
+                (*data->env)->DeleteLocalRef(data->env, jtoken_text);
+
+                probs[j] = whisper_full_get_token_p_from_state(state, i, j);
+            }
+
+            (*data->env)->ReleaseFloatArrayElements(data->env, jprobs, probs, 0);
+            (*data->env)->CallVoidMethod(data->env, data->callback_obj, data->on_new_segment_mid, jtokens, jprobs);
+
+            (*data->env)->DeleteLocalRef(data->env, jtokens);
+            (*data->env)->DeleteLocalRef(data->env, jprobs);
+            (*data->env)->DeleteLocalRef(data->env, string_class);
+        }
     }
 }
 
@@ -95,21 +128,32 @@ Java_de_dervomsee_voice2txt_whisper_WhisperLib_fullTranscribe(
     params.abort_callback = jni_whisper_abort_callback;
     params.abort_callback_user_data = NULL;
 
-    struct progress_callback_user_data callback_data = {0};
+    struct whisper_callback_user_data callback_data = {0};
     if (callback != NULL) {
         jclass callback_class = (*env)->GetObjectClass(env, callback);
         callback_data.env = env;
         callback_data.callback_obj = callback;
         callback_data.on_progress_mid = (*env)->GetMethodID(env, callback_class, "onProgress", "(I)V");
+        callback_data.on_new_segment_mid = (*env)->GetMethodID(env, callback_class, "onNewSegment", "([Ljava/lang/String;[F)V");
 
         if (callback_data.on_progress_mid == NULL) {
-            LOGE("Failed to find onProgress method ID. ProGuard might have obfuscated it.");
+            LOGW("Failed to find onProgress method ID. ProGuard might have obfuscated it.");
             if ((*env)->ExceptionCheck(env)) {
                 (*env)->ExceptionClear(env);
             }
         } else {
             params.progress_callback = jni_whisper_progress_callback;
             params.progress_callback_user_data = &callback_data;
+        }
+
+        if (callback_data.on_new_segment_mid == NULL) {
+            LOGW("Failed to find onNewSegment method ID. ProGuard might have obfuscated it.");
+            if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionClear(env);
+            }
+        } else {
+            params.new_segment_callback = jni_whisper_new_segment_callback;
+            params.new_segment_callback_user_data = &callback_data;
         }
     }
 

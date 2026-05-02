@@ -40,6 +40,11 @@ data class BenchmarkResult(
     val transcription: String
 )
 
+data class TranscriptionToken(
+    val text: String,
+    val confidence: Float
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsManager = SettingsManager(application)
 
@@ -47,6 +52,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     var transcription by mutableStateOf("")
+        private set
+
+    var transcriptionTokens by mutableStateOf<List<TranscriptionToken>>(emptyList())
         private set
 
     var isRecording by mutableStateOf(false)
@@ -243,6 +251,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Switch to main screen if we are elsewhere (e.g. Settings)
             currentScreen = Screen.Main
             transcription = ""
+            transcriptionTokens = emptyList()
 
             isTranscribing = true
             isAborted = false
@@ -261,7 +270,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         data = data, 
                         language = selectedLanguage, 
                         numThreads = whisperThreads,
-                        onProgress = { transcriptionProgress = it / 100f }
+                        onProgress = { transcriptionProgress = it / 100f },
+                        onNewSegment = { tokens, probabilities ->
+                            viewModelScope.launch(Dispatchers.Main) {
+                                val newTokens = tokens.zip(probabilities.toTypedArray()) { text, prob ->
+                                    TranscriptionToken(text, prob)
+                                }
+                                transcriptionTokens = transcriptionTokens + newTokens
+                                transcription = transcriptionTokens.joinToString("") { it.text }
+                            }
+                        }
                     ) ?: ""
                 }
                 
@@ -445,6 +463,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (data.isNotEmpty()) {
                 isTranscribing = true
                 transcriptionProgress = 0f
+                transcription = ""
+                transcriptionTokens = emptyList()
                 isAborted = false
                 var result = ""
                 val durationMs = (data.size.toFloat() / 16000f) * 1000f
@@ -454,7 +474,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         data = data, 
                         language = selectedLanguage, 
                         numThreads = whisperThreads,
-                        onProgress = { transcriptionProgress = it / 100f }
+                        onProgress = { transcriptionProgress = it / 100f },
+                        onNewSegment = { tokens, probabilities ->
+                            viewModelScope.launch(Dispatchers.Main) {
+                                val newTokens = tokens.zip(probabilities.toTypedArray()) { text, prob ->
+                                    TranscriptionToken(text, prob)
+                                }
+                                transcriptionTokens = transcriptionTokens + newTokens
+                                transcription = transcriptionTokens.joinToString("") { it.text }
+                            }
+                        }
                     ) ?: ""
                 }
                 

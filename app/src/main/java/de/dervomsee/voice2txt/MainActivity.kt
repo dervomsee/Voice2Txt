@@ -39,7 +39,10 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.IntentCompat
@@ -204,23 +207,44 @@ fun MainScreen(viewModel: MainViewModel) {
             ) {
                 SelectionContainer {
                     val copiedMessage = stringResource(R.string.copied_to_clipboard)
-                    Text(
-                        text = viewModel.transcription.ifEmpty { stringResource(R.string.transcription_hint) },
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = { /* Normal click */ },
-                                onLongClick = {
-                                    if (viewModel.transcription.isNotEmpty()) {
-                                        clipboardManager.setText(AnnotatedString(viewModel.transcription))
+                    val tokens = viewModel.transcriptionTokens
+                    
+                    if (tokens.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.transcription_hint),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    } else {
+                        val annotatedString = buildAnnotatedString {
+                            tokens.forEach { token ->
+                                val color = when {
+                                    token.confidence > 0.8f -> Color(0xFF4CAF50) // Green
+                                    token.confidence > 0.5f -> Color(0xFFFFC107) // Amber
+                                    else -> Color(0xFFF44336) // Red
+                                }
+                                withStyle(style = SpanStyle(color = color)) {
+                                    append(token.text)
+                                }
+                            }
+                        }
+                        
+                        Text(
+                            text = annotatedString,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = { /* Normal click */ },
+                                    onLongClick = {
+                                        clipboardManager.setText(annotatedString)
                                         scope.launch {
                                             snackbarHostState.showSnackbar(copiedMessage)
                                         }
                                     }
-                                }
-                            )
-                    )
+                                )
+                        )
+                    }
                 }
             }
 
