@@ -81,6 +81,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var useGpu by mutableStateOf(false)
         private set
 
+    var showConfidenceColors by mutableStateOf(true)
+        private set
+
     var selectedModel by mutableStateOf(availableModels[1]) // Default to Tiny Q8_0
         private set
 
@@ -134,6 +137,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             whisperSystemInfo = WhisperContext.getSystemInfo()
             selectedLanguage = settingsManager.selectedLanguage.first()
             useGpu = settingsManager.useGpu.first()
+            showConfidenceColors = settingsManager.showConfidenceColors.first()
             val modelFile = settingsManager.selectedModelFile.first()
             
             // Try to find in the default list first, otherwise reconstruct it
@@ -436,6 +440,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settingsManager.setUseGpu(enabled)
         }
         loadModel()
+    }
+
+    fun toggleConfidenceColors(enabled: Boolean) {
+        showConfidenceColors = enabled
+        viewModelScope.launch {
+            settingsManager.setShowConfidenceColors(enabled)
+        }
     }
 
     private fun startRecording() {

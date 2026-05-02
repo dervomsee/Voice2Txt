@@ -16,6 +16,7 @@ class SettingsManager(private val context: Context) {
         val SELECTED_MODEL_FILE = stringPreferencesKey("selected_model_file")
         val SELECTED_LANGUAGE = stringPreferencesKey("selected_language")
         val USE_GPU = booleanPreferencesKey("use_gpu")
+        val SHOW_CONFIDENCE_COLORS = booleanPreferencesKey("show_confidence_colors")
     }
 
     val selectedModelFile: Flow<String> = context.dataStore.data.map { preferences ->
@@ -28,6 +29,10 @@ class SettingsManager(private val context: Context) {
 
     val useGpu: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[USE_GPU] ?: false
+    }
+
+    val showConfidenceColors: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[SHOW_CONFIDENCE_COLORS] ?: true
     }
 
     suspend fun setSelectedModelFile(fileName: String) {
@@ -45,6 +50,12 @@ class SettingsManager(private val context: Context) {
     suspend fun setUseGpu(useGpu: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[USE_GPU] = useGpu
+        }
+    }
+
+    suspend fun setShowConfidenceColors(show: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[SHOW_CONFIDENCE_COLORS] = show
         }
     }
 }

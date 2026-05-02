@@ -26,6 +26,7 @@
     <string name="settings_title">Einstellungen</string>
     <string name="settings_model_label">Whisper-Modell</string>
     <string name="settings_language_label">Sprache</string>
+    <string name="settings_show_colors_label">Konfidenzfarben anzeigen</string>
     <string name="back">Zurück</string>
     <string name="transcription_aborted">Transkription abgebrochen.</string>
     <string name="menu_benchmark">Benchmark</string>

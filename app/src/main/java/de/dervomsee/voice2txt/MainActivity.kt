@@ -218,12 +218,16 @@ fun MainScreen(viewModel: MainViewModel) {
                     } else {
                         val annotatedString = buildAnnotatedString {
                             tokens.forEach { token ->
-                                val color = when {
-                                    token.confidence > 0.8f -> Color(0xFF4CAF50) // Green
-                                    token.confidence > 0.5f -> Color(0xFFFFC107) // Amber
-                                    else -> Color(0xFFF44336) // Red
-                                }
-                                withStyle(style = SpanStyle(color = color)) {
+                                if (viewModel.showConfidenceColors) {
+                                    val color = when {
+                                        token.confidence > 0.8f -> Color(0xFF4CAF50) // Green
+                                        token.confidence > 0.5f -> Color(0xFFFFC107) // Amber
+                                        else -> Color(0xFFF44336) // Red
+                                    }
+                                    withStyle(style = SpanStyle(color = color)) {
+                                        append(token.text)
+                                    }
+                                } else {
                                     append(token.text)
                                 }
                             }
@@ -640,6 +644,24 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 Switch(
                     checked = viewModel.useGpu,
                     onCheckedChange = { viewModel.toggleGpu(it) }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            // Confidence Colors Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_show_colors_label),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Switch(
+                    checked = viewModel.showConfidenceColors,
+                    onCheckedChange = { viewModel.toggleConfidenceColors(it) }
                 )
             }
         }
