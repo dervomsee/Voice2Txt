@@ -1,12 +1,53 @@
-*.iml
-.gradle
-/local.properties
-/.idea/
-/build
-/captures
-.externalNativeBuild
-.cxx
+### Gradle ###
+.gradle/
+gradle/
+build/
+**/build/
+
+### Local configuration ###
 local.properties
+/local.properties
+
+### Log/OS Files ###
+*.log
+
+### Android Studio / IntelliJ ###
+*.iml
+.idea/
+
+### Build artifacts / generated files ###
+captures/
+/.externalNativeBuild/
+.externalNativeBuild/
+.cxx/
+obj/
+bin/
+gen/
+out/
+/out/
 /.kotlin/sessions/
 /.artifacts/
+
+### Packages / binaries ###
+*.apk
+*.ap_
 *.aab
+*.dex
+*.class
+
+### Signing / keystore ###
+*.jks
+*.keystore
+.signing/
+
+### Google services / Firebase ###
+google-services.json
+
+### Android profiling ###
+*.hprof
+
+### Misc ###
+output.json
+gen-external-apklibs
+proguard/
+

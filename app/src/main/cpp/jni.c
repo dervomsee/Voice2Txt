@@ -40,22 +40,36 @@ void jni_whisper_new_segment_callback(struct whisper_context * ctx, struct whisp
     struct whisper_callback_user_data *data = (struct whisper_callback_user_data *)user_data;
     if (data && data->callback_obj && data->on_new_segment_mid) {
         int n_segments = whisper_full_n_segments_from_state(state);
+        whisper_token eot_id = whisper_token_eot(ctx);
+
         for (int i = n_segments - n_new; i < n_segments; i++) {
             int n_tokens = whisper_full_n_tokens_from_state(state, i);
 
-            jclass string_class = (*data->env)->FindClass(data->env, "java/lang/String");
-            jobjectArray jtokens = (*data->env)->NewObjectArray(data->env, n_tokens, string_class, NULL);
+            // First count valid non-special tokens
+            int n_valid_tokens = 0;
+            for (int j = 0; j < n_tokens; j++) {
+                if (whisper_full_get_token_id_from_state(state, i, j) < eot_id) {
+                    n_valid_tokens++;
+                }
+            }
 
-            jfloatArray jprobs = (*data->env)->NewFloatArray(data->env, n_tokens);
+            jclass string_class = (*data->env)->FindClass(data->env, "java/lang/String");
+            jobjectArray jtokens = (*data->env)->NewObjectArray(data->env, n_valid_tokens, string_class, NULL);
+
+            jfloatArray jprobs = (*data->env)->NewFloatArray(data->env, n_valid_tokens);
             jfloat *probs = (*data->env)->GetFloatArrayElements(data->env, jprobs, NULL);
 
+            int valid_idx = 0;
             for (int j = 0; j < n_tokens; j++) {
-                const char * token_text = whisper_full_get_token_text_from_state(ctx, state, i, j);
-                jstring jtoken_text = (*data->env)->NewStringUTF(data->env, token_text);
-                (*data->env)->SetObjectArrayElement(data->env, jtokens, j, jtoken_text);
-                (*data->env)->DeleteLocalRef(data->env, jtoken_text);
+                if (whisper_full_get_token_id_from_state(state, i, j) < eot_id) {
+                    const char * token_text = whisper_full_get_token_text_from_state(ctx, state, i, j);
+                    jstring jtoken_text = (*data->env)->NewStringUTF(data->env, token_text);
+                    (*data->env)->SetObjectArrayElement(data->env, jtokens, valid_idx, jtoken_text);
+                    (*data->env)->DeleteLocalRef(data->env, jtoken_text);
 
-                probs[j] = whisper_full_get_token_p_from_state(state, i, j);
+                    probs[valid_idx] = whisper_full_get_token_p_from_state(state, i, j);
+                    valid_idx++;
+                }
             }
 
             (*data->env)->ReleaseFloatArrayElements(data->env, jprobs, probs, 0);
@@ -122,6 +136,7 @@ Java_de_dervomsee_voice2txt_whisper_WhisperLib_fullTranscribe(
     params.n_threads = num_threads;
     params.print_realtime = false;
     params.print_progress = false;
+    params.print_special = false;
     params.language = lang_chars;
 
     g_abort_transcription = false;
@@ -181,8 +196,31 @@ JNIEXPORT jstring JNICALL
 Java_de_dervomsee_voice2txt_whisper_WhisperLib_getTextSegment(
         JNIEnv *env, jobject thiz, jlong context_ptr, jint index) {
     struct whisper_context *context = (struct whisper_context *) context_ptr;
-    const char *text = whisper_full_get_segment_text(context, index);
-    return (*env)->NewStringUTF(env, text);
+    int n_tokens = whisper_full_n_tokens(context, index);
+    whisper_token eot_id = whisper_token_eot(context);
+
+    // Calculate total length for filtered text
+    size_t total_len = 0;
+    for (int i = 0; i < n_tokens; i++) {
+        if (whisper_full_get_token_id(context, index, i) < eot_id) {
+            total_len += strlen(whisper_full_get_token_text(context, index, i));
+        }
+    }
+
+    char *filtered_text = (char *)malloc(total_len + 1);
+    if (filtered_text == NULL) {
+        return (*env)->NewStringUTF(env, "");
+    }
+    filtered_text[0] = '\0';
+    for (int i = 0; i < n_tokens; i++) {
+        if (whisper_full_get_token_id(context, index, i) < eot_id) {
+            strcat(filtered_text, whisper_full_get_token_text(context, index, i));
+        }
+    }
+
+    jstring result = (*env)->NewStringUTF(env, filtered_text);
+    free(filtered_text);
+    return result;
 }
 
 JNIEXPORT jstring JNICALL
